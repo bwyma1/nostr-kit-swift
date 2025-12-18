@@ -64,7 +64,7 @@ public struct Filter:Sendable, RAW_convertible {
 		for _ in 0..<Int(tagCount) {
 			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
 			let tagLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
-			guard let tag = UnsignedEvent.Tag(RAW_decode: inputPtr, count: tagLength) else { return nil }
+			guard let tag = EventTag(RAW_decode: inputPtr, count: tagLength) else { return nil }
 			inputPtr = inputPtr.advanced(by: tagLength)
 			dataCount -= tagLength
 			tags.append(tag)

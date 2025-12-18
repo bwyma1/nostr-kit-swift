@@ -2,9 +2,9 @@ import RAW
 
 
 @RAW_convertible_string_type<UTF8>(backing:RAW_byte.self)
-public struct Content: NOSTR_event_content, Comparable, ExpressibleByStringLiteral { }
+public struct StringContent: NOSTR_event_content, Comparable, ExpressibleByStringLiteral { }
 
-public struct UnsignedEvent:NOSTR_event_unsigned {
+public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 	
 	public var id: NOSTR_id
 	
@@ -16,9 +16,9 @@ public struct UnsignedEvent:NOSTR_event_unsigned {
 	
 	public var kind: NOSTR_kind
 	
-	public var content: any NOSTR_event_content
+	public var content: Content
 	
-	public init(id: NOSTR_id, publicKey: PublicKey, date: NOSTR_date, tags: [any NOSTR_tag], kind: NOSTR_kind, content: any NOSTR_event_content) {
+	public init(id: NOSTR_id, publicKey: PublicKey, date: NOSTR_date, tags: [any NOSTR_tag], kind: NOSTR_kind, content: Content) {
 		self.id = id
 		self.publicKey = publicKey
 		self.date = date
@@ -39,7 +39,7 @@ public struct UnsignedEvent:NOSTR_event_unsigned {
 			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
 			let tagLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
-			guard let tag = Tag(RAW_decode: inputPtr, count: tagLength) else { return nil }
+			guard let tag = EventTag(RAW_decode: inputPtr, count: tagLength) else { return nil }
 			inputPtr = inputPtr.advanced(by: tagLength)
 			dataCount -= tagLength
 			tags.append(tag)
@@ -49,7 +49,8 @@ public struct UnsignedEvent:NOSTR_event_unsigned {
 		dataCount -= MemoryLayout<NOSTR_kind>.size
 		
 		guard dataCount >= 0 else { return nil }
-		content = Content(RAW_decode: inputPtr, count: dataCount)
+		guard let content = Content(RAW_decode: inputPtr, count: dataCount) else { return nil }
+		self.content = content
 	}
 	
 	public func RAW_encode(count: inout RAW.size_t) {

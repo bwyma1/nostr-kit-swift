@@ -15,27 +15,27 @@ extension NostrTests {
 	)
 	struct NostrEventTests {
 		static let staticPrivateKey = MemoryGuarded<PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
-		let tags: [UnsignedEvent.Tag]
+		let tags: [EventTag]
 		let date:NOSTR_date
 		let kind:NOSTR_kind
 		let publicKey:PublicKey
 		let privateKey:MemoryGuarded<Ed25519.PrivateKey>
-		let content:Content
-		let event:UnsignedEvent
+		let content:StringContent
+		let event:UnsignedEvent<StringContent>
 			
 		init() throws {
 			let tagName = NOSTR_tag_name(RAW_staticbuff: [0,1,2,3])
 			let tagValue1 = NOSTR_tag_generic_value(stringLiteral: "This is an example of a tag value. The first tag value example. ")
 			let tagValue2 = NOSTR_tag_generic_value(stringLiteral: "Another tag example.")
 			var tagValues = [tagValue1]
-			let tag = try UnsignedEvent.Tag(NOSTR_tag_index_field: tagName, NOSTR_tag_values: tagValues)
+			let tag = try EventTag(NOSTR_tag_index_field: tagName, NOSTR_tag_values: tagValues)
 			tagValues = [tagValue1, tagValue2]
-			let tag2 = try UnsignedEvent.Tag(NOSTR_tag_index_field: tagName, NOSTR_tag_values: tagValues)
+			let tag2 = try EventTag(NOSTR_tag_index_field: tagName, NOSTR_tag_values: tagValues)
 			tags = [tag, tag2]
 			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
 			date = try generateSecureRandomBytes(as: NOSTR_date.self)
 			kind = NOSTR_kind(RAW_native: 1)
-			content = Content(stringLiteral: "Some Nostr Content")
+			content = StringContent(stringLiteral: "Some Nostr Content")
 			event = try UnsignedEvent(publicKey: publicKey, date: date, tags: [tag, tag2], kind: kind, content: content)
 		}
 		
@@ -45,7 +45,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: tagLen)
 			defer { buffer.deallocate() }
 			_ = tag.RAW_encode(dest:buffer.baseAddress!)
-			let decodedTag = UnsignedEvent.Tag(RAW_decode: buffer.baseAddress!, count: tagLen)!
+			let decodedTag = EventTag(RAW_decode: buffer.baseAddress!, count: tagLen)!
 			#expect(tag.isEqual(to: decodedTag))
 		}
 		
@@ -54,13 +54,13 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eventLen)
 			defer { buffer.deallocate() }
 			_ = event.RAW_encode(dest:buffer.baseAddress!)
-			let decodedEvent = UnsignedEvent(RAW_decode: buffer.baseAddress!, count: eventLen)!
+			let decodedEvent = UnsignedEvent<StringContent>(RAW_decode: buffer.baseAddress!, count: eventLen)!
 			#expect(event.id == decodedEvent.id)
 			#expect(event.publicKey == decodedEvent.publicKey)
 			#expect(event.date == decodedEvent.date)
-			#expect(event.tags as! [UnsignedEvent.Tag] == decodedEvent.tags as! [UnsignedEvent.Tag])
+			#expect(event.tags as! [EventTag] == decodedEvent.tags as! [EventTag])
 			#expect(event.kind == decodedEvent.kind)
-			#expect(event.content as! Content == decodedEvent.content as! Content)
+			#expect(event.content == decodedEvent.content)
 		}
 		
 		@Test func encodeDecodeSignedEvent() throws {
@@ -69,7 +69,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eventLen)
 			defer { buffer.deallocate() }
 			_ = signedEvent.RAW_encode(dest:buffer.baseAddress!)
-			let decodedSignedEvent = NOSTR_event_signed(RAW_decode: buffer.baseAddress!, count: eventLen)!
+			let decodedSignedEvent = NOSTR_event_signed<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: eventLen)!
 			#expect(decodedSignedEvent.isValidSignature())
 		}
 		
@@ -102,7 +102,7 @@ extension NostrTests {
 			#expect(filter.ids == decodedFilter.ids)
 			#expect(filter.authors == decodedFilter.authors)
 			#expect(filter.kinds == decodedFilter.kinds)
-			#expect(filter.tags as! [UnsignedEvent.Tag] == decodedFilter.tags as! [UnsignedEvent.Tag])
+			#expect(filter.tags as! [EventTag] == decodedFilter.tags as! [EventTag])
 			#expect(filter.since == decodedFilter.since)
 			#expect(filter.until == decodedFilter.until)
 			
@@ -115,7 +115,7 @@ extension NostrTests {
 			#expect(nilFilter.ids == decodedNilFilter.ids)
 			#expect(decodedNilFilter.authors.isEmpty)
 			#expect(nilFilter.kinds == decodedNilFilter.kinds)
-			#expect(nilFilter.tags as! [UnsignedEvent.Tag] == decodedNilFilter.tags as! [UnsignedEvent.Tag])
+			#expect(nilFilter.tags as! [EventTag] == decodedNilFilter.tags as! [EventTag])
 			#expect(decodedNilFilter.since == nil)
 			#expect(nilFilter.until == decodedNilFilter.until)
 		}
@@ -137,7 +137,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
 			defer { buffer.deallocate() }
 			_ = eventMessage.RAW_encode(dest:buffer.baseAddress!)
-			let decodedEventMessage = NOSTR_message_EVENT(RAW_decode: buffer.baseAddress!, count: messageLen)!
+			let decodedEventMessage = NOSTR_message_EVENT<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: messageLen)!
 			#expect(eventMessage.type == decodedEventMessage.type)
 			#expect(eventMessage.event.id == decodedEventMessage.event.id)
 			#expect(decodedEventMessage.event.isValidSignature())

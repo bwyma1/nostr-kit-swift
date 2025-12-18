@@ -4,9 +4,9 @@ public enum NOSTR_message_error: Error {
 	case badDecode
 }
 
-public enum NOSTR_message {
+public enum NOSTR_message<UnsignedEvent: NOSTR_event_unsigned> {
 	case REQ(NOSTR_message_REQ)
-	case EVENT(NOSTR_message_EVENT)
+	case EVENT(NOSTR_message_EVENT<UnsignedEvent>)
 	case CLOSE(NOSTR_message_CLOSE)
 }
 
@@ -69,13 +69,13 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 	}
 }
 
-public struct NOSTR_message_EVENT:Sendable, RAW_convertible {
+public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, RAW_convertible {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x100)
 	
-	public let event:NOSTR_event_signed
+	public let event:NOSTR_event_signed<UnsignedEvent>
 	
-	public init(event:NOSTR_event_signed) {
+	public init(event:NOSTR_event_signed<UnsignedEvent>) {
 		self.event = event
 	}
 	
@@ -85,7 +85,7 @@ public struct NOSTR_message_EVENT:Sendable, RAW_convertible {
 		guard readType.RAW_native() == 0x100 else { return nil }
 		let dataCount = count - MemoryLayout<NOSTR_message_type>.size
 		guard dataCount >= 0 else { return nil }
-		guard let event = NOSTR_event_signed(RAW_decode: inputPtr, count: dataCount) else { return nil }
+		guard let event = NOSTR_event_signed<UnsignedEvent>(RAW_decode: inputPtr, count: dataCount) else { return nil }
 		self.event = event
 	}
 	

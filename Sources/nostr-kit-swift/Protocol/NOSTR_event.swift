@@ -19,13 +19,14 @@ public protocol NOSTR_event_unsigned: Sendable, Identifiable, RAW_convertible {
 	
 	var kind:NOSTR_kind { get set }
 	
-	var content:NOSTR_event_content { get set }
+	associatedtype ContentType:NOSTR_event_content
+	var content:ContentType { get set }
 	
-	init(id:NOSTR_id, publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], kind:NOSTR_kind, content:NOSTR_event_content)
+	init(id:NOSTR_id, publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], kind:NOSTR_kind, content:ContentType)
 }
 
 extension NOSTR_event_unsigned {
-	public init(publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], kind:NOSTR_kind, content:NOSTR_event_content) throws {
+	public init(publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], kind:NOSTR_kind, content:ContentType) throws {
 		var hasher = RAW_sha256.Hasher<NOSTR_id>()
 		
 		try hasher.update(publicKey)
@@ -58,7 +59,7 @@ extension NOSTR_event_unsigned {
 	/// Sign the `NOSTR_event_unsigned` using the authors `PrivateKey`.
 	/// The event should only ever be signed once.
 	/// The event should be signed once it has been confirmed to be finalized.
-	public func sign(as author:MemoryGuarded<Ed25519.PrivateKey>) throws -> NOSTR_event_signed {
+	public func sign(as author:MemoryGuarded<Ed25519.PrivateKey>) throws -> NOSTR_event_signed<Self> {
 		var sig = NOSTR_sig(RAW_staticbuff: NOSTR_sig.RAW_staticbuff_zeroed())
 		sig.RAW_access_mutating { sigPtr in
 			id.RAW_access { msgPtr in
@@ -69,7 +70,7 @@ extension NOSTR_event_unsigned {
 	}
 }
 
-public struct NOSTR_event_signed: Sendable, Identifiable, RAW_convertible, RAW_accessible {
+public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, Identifiable, RAW_convertible, RAW_accessible {
 	public func RAW_access<R, E>(_ body: (UnsafeBufferPointer<UInt8>) throws(E) -> R) throws(E) -> R where E : Error {
 		var count: RAW.size_t = 0
 		self.RAW_encode(count: &count)
@@ -120,9 +121,9 @@ public struct NOSTR_event_signed: Sendable, Identifiable, RAW_convertible, RAW_a
 		sig
 	}
 	
-	public let unsignedEvent:any NOSTR_event_unsigned
+	public let unsignedEvent:UnsignedEvent
 	
-	public init(unsignedEvent:any NOSTR_event_unsigned, sig:NOSTR_sig) {
+	public init(unsignedEvent:UnsignedEvent, sig:NOSTR_sig) {
 		self.unsignedEvent = unsignedEvent
 		self.sig = sig
 	}
