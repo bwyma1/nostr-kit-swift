@@ -1,0 +1,32 @@
+{
+  "originHash" : "dfad470f597d5fa5bfebb4b0b3a4075aab85f3cf7664c1778bbd7a11bc84367d",
+  "pins" : [
+    {
+      "identity" : "rawdog",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tannerdsilva/rawdog.git",
+      "state" : {
+        "revision" : "1c4966c72102fc01b169cbc18ee5f0be10d802de"
+      }
+    },
+    {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "bc386b95f2a16ccd0150a8235e7c69eab2b866ca",
+        "version" : "1.8.0"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-syntax.git",
+      "state" : {
+        "revision" : "4799286537280063c85a32f09884cfbca301b1a1",
+        "version" : "602.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}
