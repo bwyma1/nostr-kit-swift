@@ -105,7 +105,7 @@ public struct NOSTR_message_CLOSE:Sendable, RAW_convertible {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x101)
 	
-	init() {}
+	public init() {}
 	
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
 		guard count >= MemoryLayout<NOSTR_message_type>.size else { return nil }
