@@ -22,7 +22,7 @@ public struct EventTag: NOSTR_tag {
 
 		let tagName = NOSTR_tag_name(RAW_staticbuff_seeking: &inputPtr)
 		let tagValueCount = Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native()
-		var dataCount = count - MemoryLayout<NOSTR_tag_name>.size
+		var dataCount = count - MemoryLayout<NOSTR_tag_name>.size - MemoryLayout<Bytes1>.size
 		
 		var values: [any NOSTR_tag_value] = []
 		for _ in 0..<Int(tagValueCount) {

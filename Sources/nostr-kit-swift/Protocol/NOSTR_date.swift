@@ -9,10 +9,13 @@ public struct NOSTR_date: Sendable, Comparable, RAW_convertible {
 	public init(date: Foundation.Date) {
 		self = NOSTR_date(RAW_native: UInt64(date.timeIntervalSince1970))
 	}
-	init(_ date:UInt64) {
+	public init(_ date:UInt64) {
 		self = NOSTR_date(RAW_native: date)
 	}
-	func currentTime() -> UInt64 {
+	public func currentTime() -> UInt64 {
 		return self.RAW_native()
+	}
+	public func currentDate() -> Foundation.Date {
+		Foundation.Date(timeIntervalSince1970: TimeInterval(self.RAW_native()))
 	}
 }
