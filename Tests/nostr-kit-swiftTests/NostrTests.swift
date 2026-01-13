@@ -120,19 +120,9 @@ extension NostrTests {
 			#expect(nilFilter.until == decodedNilFilter.until)
 		}
 		
-		@Test func encodeDecodeCLOSEMessage() throws {
-			let closeMessage = NOSTR_message_CLOSE()
-			var closeLen = 0; closeMessage.RAW_encode(count: &closeLen)
-			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: closeLen)
-			defer { buffer.deallocate() }
-			_ = closeMessage.RAW_encode(dest:buffer.baseAddress!)
-			let decodedCloseMessage = NOSTR_message_CLOSE(RAW_decode: buffer.baseAddress!, count: closeLen)!
-			#expect(decodedCloseMessage.type == closeMessage.type)
-		}
-		
 		@Test func encodeDecodeEVENTMessage() throws {
 			let signedEvent = try event.sign(as: privateKey)
-			let eventMessage = NOSTR_message_EVENT(event: signedEvent)
+			let eventMessage = NOSTR_message_EVENT(subscriptionID: "home", event: signedEvent)
 			var messageLen: Int = 0; eventMessage.RAW_encode(count: &messageLen)
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
 			defer { buffer.deallocate() }
@@ -141,6 +131,73 @@ extension NostrTests {
 			#expect(eventMessage.type == decodedEventMessage.type)
 			#expect(eventMessage.event.id == decodedEventMessage.event.id)
 			#expect(decodedEventMessage.event.isValidSignature())
+		}
+		
+		
+	}
+}
+
+extension NostrTests {
+	@Suite("Nostr Event Tests",
+		   .serialized
+	)
+	
+	struct NostrMessageTests {
+		@Test func encodeDecodeREQMessage() throws {
+			let reqFilter = Filter(ids: [], authors: [], kinds: [], tags: [], since: nil, until: nil)
+			let filters = [reqFilter, reqFilter]
+			let reqMessage = NOSTR_message_REQ(subscriptionID: "home", filters: filters)
+			var reqLen = 0; reqMessage.RAW_encode(count: &reqLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: reqLen)
+			defer { buffer.deallocate() }
+			_ = reqMessage.RAW_encode(dest:buffer.baseAddress!)
+			let decodedReqMessage = NOSTR_message_REQ(RAW_decode: buffer.baseAddress!, count: reqLen)!
+			#expect(decodedReqMessage.subscriptionID == reqMessage.subscriptionID)
+			#expect(decodedReqMessage.type == reqMessage.type)
+		}
+		
+		@Test func encodeDecodeEOSEMessage() throws {
+			let eoseMessage = NOSTR_message_EOSE(subscriptionID: "home")
+			var eoseLen = 0; eoseMessage.RAW_encode(count: &eoseLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eoseLen)
+			defer { buffer.deallocate() }
+			_ = eoseMessage.RAW_encode(dest:buffer.baseAddress!)
+			let decodedEoseMessage = NOSTR_message_EOSE(RAW_decode: buffer.baseAddress!, count: eoseLen)!
+			#expect(decodedEoseMessage.subscriptionID == eoseMessage.subscriptionID)
+			#expect(decodedEoseMessage.type == eoseMessage.type)
+		}
+		
+		@Test func encodeDecodeCLOSEMessage() throws {
+			let closeMessage = NOSTR_message_CLOSE(subscriptionID: "home")
+			var closeLen = 0; closeMessage.RAW_encode(count: &closeLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: closeLen)
+			defer { buffer.deallocate() }
+			_ = closeMessage.RAW_encode(dest:buffer.baseAddress!)
+			let decodedCloseMessage = NOSTR_message_CLOSE(RAW_decode: buffer.baseAddress!, count: closeLen)!
+			#expect(decodedCloseMessage.subscriptionID == closeMessage.subscriptionID)
+			#expect(decodedCloseMessage.type == closeMessage.type)
+		}
+		
+		@Test func encodeDecodeNOTICEMessage() throws {
+			let noticeMessage = NOSTR_message_NOTICE(noticeText: "Hello World!")
+			var noticeLen = 0; noticeMessage.RAW_encode(count: &noticeLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: noticeLen)
+			defer { buffer.deallocate() }
+			_ = noticeMessage.RAW_encode(dest:buffer.baseAddress!)
+			let decodedNoticeMessage = NOSTR_message_NOTICE(RAW_decode: buffer.baseAddress!, count: noticeLen)!
+			#expect(decodedNoticeMessage.noticeText == noticeMessage.noticeText)
+			#expect(decodedNoticeMessage.type == noticeMessage.type)
+		}
+		
+		@Test func encodeDecodeOKMessage() throws {
+			let eventID = try generateSecureRandomBytes(as: NOSTR_id.self)
+			let okMessage = NOSTR_message_OK(eventID:eventID, status:true)
+			var okLen = 0; okMessage.RAW_encode(count: &okLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: okLen)
+			defer { buffer.deallocate() }
+			_ = okMessage.RAW_encode(dest:buffer.baseAddress!)
+			let decodedOkMessage = NOSTR_message_OK(RAW_decode: buffer.baseAddress!, count: okLen)!
+			#expect(decodedOkMessage.type == okMessage.type)
 		}
 	}
 }

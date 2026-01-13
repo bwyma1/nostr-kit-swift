@@ -159,3 +159,30 @@ public struct Filter:Sendable, RAW_convertible {
 		return dest
 	}
 }
+
+
+extension Filter {
+	/// Applys this filter to a signed event.
+	/// Returns True if the signed event contains the elements of the Filter, else returns false.
+	public func apply<UnsignedEvent:NOSTR_event_unsigned>(to event: NOSTR_event_signed<UnsignedEvent>) -> Bool {
+		// make sure each filter tag is in the event tags
+		var hasTags: Bool = true
+		for tag in self.tags {
+			guard event.unsignedEvent.tags.contains(where: { eventTag in
+				tag.isEqual(to: eventTag)
+			}) else {
+				hasTags = false
+				continue
+			}
+		}
+		if((self.ids == [] || self.ids.contains(event.unsignedEvent.id)) &&
+		   (self.authors == [] || self.authors.contains(event.unsignedEvent.publicKey)) &&
+		   (self.kinds == [] || self.kinds.contains(event.unsignedEvent.kind)) &&
+		   (self.since == nil || self.since! <= event.unsignedEvent.date) &&
+		   (self.until == nil || self.until! >= event.unsignedEvent.date) &&
+		   hasTags) {
+			return true
+		}
+		return false
+	}
+}

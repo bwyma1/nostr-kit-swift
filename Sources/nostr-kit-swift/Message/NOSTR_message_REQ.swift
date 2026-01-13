@@ -1,0 +1,76 @@
+import RAW
+
+/// Sent by the client to the server with an array of filters.
+/// The server stores the REQ for the subscription and sends over the filtered data.
+/// The server continues to send over filtered data until the REQ gets replaced with a new REQ filter or the server receives a CLOSE message.
+public struct NOSTR_message_REQ:Sendable, RAW_convertible {
+	
+	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x100)
+	
+	public let subscriptionID:NOSTR_subscription_ID
+	
+	public var filters:[Filter]
+	
+	public init(subscriptionID:String, filters:[Filter]) {
+		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
+		self.filters = filters
+	}
+	
+	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+		guard count >= MemoryLayout<Bytes4>.size else { return nil }
+		let subscriptionIDLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+		var dataCount = count - MemoryLayout<Bytes4>.size
+		guard dataCount >= subscriptionIDLength else { return nil }
+		self.subscriptionID = NOSTR_subscription_ID(RAW_decode: inputPtr, count: subscriptionIDLength)
+		inputPtr = inputPtr.advanced(by: subscriptionIDLength)
+		dataCount -= subscriptionIDLength
+		
+		guard count >= MemoryLayout<NOSTR_message_type>.size else { return nil }
+		let readType = NOSTR_message_type(RAW_staticbuff_seeking: &inputPtr)
+		guard readType.RAW_native() == 0x100 else { return nil }
+		dataCount -= MemoryLayout<NOSTR_message_type>.size
+		
+		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
+		let filterCount = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+		dataCount -= MemoryLayout<Bytes1>.size
+		
+		var filters:[Filter] = []
+		for _ in 0..<filterCount {
+			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
+			let filterLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+			dataCount -= MemoryLayout<Bytes4>.size
+			guard dataCount >= filterLength else { return nil }
+			guard let filter = Filter(RAW_decode: inputPtr, count: filterLength) else { return nil }
+			inputPtr = inputPtr.advanced(by: filterLength)
+			dataCount -= filterLength
+			filters.append(filter)
+		}
+		self.filters = filters
+	}
+	
+	public func RAW_encode(count: inout RAW.size_t) {
+		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<Bytes1>.size + MemoryLayout<Bytes4>.size * (filters.count + 1)
+		subscriptionID.RAW_encode(count: &count)
+		for filter in filters {
+			filter.RAW_encode(count: &count)
+		}
+	}
+	
+	public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
+		var subscriptionIDLength = 0; subscriptionID.RAW_encode(count: &subscriptionIDLength)
+		let subscriptionIDLengthBytes = Bytes4(RAW_native: UInt32(subscriptionIDLength))
+		var dest = subscriptionIDLengthBytes.RAW_encode(dest: dest)
+		dest = subscriptionID.RAW_encode(dest: dest)
+		
+		dest = type.RAW_encode(dest: dest)
+		let filterCount = Bytes1(RAW_native: UInt8(filters.count))
+		dest = filterCount.RAW_encode(dest: dest)
+		for filter in filters {
+			var filterLength = 0; filter.RAW_encode(count: &filterLength)
+			let filterLengthBytes = Bytes4(RAW_native: UInt32(filterLength))
+			dest = filterLengthBytes.RAW_encode(dest: dest)
+			dest = filter.RAW_encode(dest: dest)
+		}
+		return dest
+	}
+}
