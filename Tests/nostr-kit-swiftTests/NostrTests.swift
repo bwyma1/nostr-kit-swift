@@ -22,18 +22,14 @@ extension NostrTests {
 		let privateKey:MemoryGuarded<Ed25519.PrivateKey>
 		let content:StringContent
 		let event:UnsignedEvent<StringContent>
-			
+		
 		init() throws {
-			let tagName = NOSTR_tag_name(RAW_staticbuff: [0,1,2,3])
-			let tagValue1 = NOSTR_tag_generic_value(stringLiteral: "This is an example of a tag value. The first tag value example. ")
-			let tagValue2 = NOSTR_tag_generic_value(stringLiteral: "Another tag example.")
-			var tagValues = [tagValue1]
-			let tag = try EventTag(NOSTR_tag_index_field: tagName, NOSTR_tag_values: tagValues)
-			tagValues = [tagValue1, tagValue2]
-			let tag2 = try EventTag(NOSTR_tag_index_field: tagName, NOSTR_tag_values: tagValues)
-			tags = [tag, tag2]
+			let tag = EventTag(tagName: "e", tagValues: ["val1", "metadata1"])
+			let tag2 = EventTag(tagName: "e", tagValues: ["val2", "metadata2"])
+			let tag3 = EventTag(tagName: "p", tagValues: ["val1", "metadata1", "metadata2"])
+			tags = [tag, tag2, tag3]
 			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
-			date = try generateSecureRandomBytes(as: NOSTR_date.self)
+			date = NOSTR_date(date: Date())
 			kind = NOSTR_kind(RAW_native: 1)
 			content = StringContent(stringLiteral: "Some Nostr Content")
 			event = try UnsignedEvent(publicKey: publicKey, date: date, tags: [tag, tag2], kind: kind, content: content)
@@ -75,7 +71,7 @@ extension NostrTests {
 		
 		@Test func signAndVerifyEvent() throws {
 			let signedEvent = try event.sign(as: privateKey)
-			#expect(try signedEvent.isValidSignature())
+			#expect(signedEvent.isValidSignature())
 		}
 		
 		@Test func signedEventRAWaccess() throws {
@@ -133,7 +129,23 @@ extension NostrTests {
 			#expect(decodedEventMessage.event.isValidSignature())
 		}
 		
+		@Test func applyPositiveFilters() throws {
+			let signedEvent = try event.sign(as: privateKey)
+			let tags:[EventTag] = [EventTag(tagName: "e", tagValues: ["val1","val4"]), EventTag(tagName: "e", tagValues: ["val2"])]
+			let filter = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags)
+			#expect(filter.apply(to: signedEvent))
+		}
 		
+		@Test func applyNegativeFilters() throws {
+			let signedEvent = try event.sign(as: privateKey)
+			var tags:[EventTag] = [EventTag(tagName: "e", tagValues: ["val2"]), EventTag(tagName: "e", tagValues: ["val4"])]
+			let filterTags = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags)
+			#expect(!filterTags.apply(to: signedEvent))
+			
+			tags = []
+			let filterKind = Filter(ids: [event.id], authors: [event.publicKey], kinds: [NOSTR_kind(RAW_native:2)], tags: tags)
+			#expect(!filterKind.apply(to: signedEvent))
+		}
 	}
 }
 

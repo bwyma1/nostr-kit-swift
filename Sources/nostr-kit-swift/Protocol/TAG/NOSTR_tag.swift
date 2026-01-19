@@ -3,6 +3,17 @@ import RAW
 
 public protocol NOSTR_tag_value: Sendable, Comparable, RAW_convertible, RAW_accessible { }
 
+extension NOSTR_tag_value {
+	public func isEqual(to other: any NOSTR_tag_value) -> Bool {
+		return self.RAW_access { aPtr in
+			other.RAW_access { bPtr in
+				guard aPtr.count == bPtr.count else { return false }
+				return memcmp(aPtr.baseAddress!, bPtr.baseAddress!, aPtr.count) == 0
+			}
+		}
+	}
+}
+
 /// A `NOSTR_tag` is an array of one or more items
 /// The first item in a `NOSTR_tag` will always be an index field with a type `NOSTR_tag_name`
 /// Every other item following the index field is a value associated to the specified index field.
@@ -39,15 +50,6 @@ extension NOSTR_tag {
 			}
 		}
 	}
-
-	public static func valuesAreEqual(_ a: any NOSTR_tag_value,_ b: any NOSTR_tag_value) -> Bool {
-		return a.RAW_access { aPtr in
-			b.RAW_access { bPtr in
-				guard aPtr.count == bPtr.count else { return false }
-				return memcmp(aPtr.baseAddress!, bPtr.baseAddress!, aPtr.count) == 0
-			}
-		}
-	}
 	
 	public func isEqual(to other: any NOSTR_tag) -> Bool {
 		guard let other = other as? Self else { return false }
@@ -66,7 +68,7 @@ extension NOSTR_tag {
 		for lVal in lhs.NOSTR_tag_values {
 			var foundIndex: Int? = nil
 			for (i, rVal) in rhsRemaining.enumerated() {
-				if valuesAreEqual(lVal, rVal) {
+				if lVal.isEqual(to: rVal) {
 					foundIndex = i
 					break
 				}

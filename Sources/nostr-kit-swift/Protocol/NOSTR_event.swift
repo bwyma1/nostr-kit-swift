@@ -117,6 +117,7 @@ public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, 
 	
 	
 	public let sig:NOSTR_sig
+	// For identifiable protocol
 	public var id: NOSTR_sig {
 		sig
 	}

@@ -1,6 +1,20 @@
 import RAW
 import RAW_dh25519
 
+@RAW_staticbuff(bytes: 8)
+public struct NOSTR_filter_limit:Sendable { }
+
+/// List Attributes (ids, authors, kinds, and tag filters like #e):
+/// - An event matches if its value is contained in the list
+/// - For tags, the event must have at least one tag value matching one value in the filter list
+/// Time Range (since and until):
+/// - Events match if: `since <= created_at <= until`
+/// Multiple Conditions:
+/// - Within a single filter, all conditions must be satisfied (logical AND)
+/// - If multiple filters are provided, an event matches if it satisfies any filter (logical OR)
+/// Special Considerations:
+/// - Limits only apply to the initial query and is ignored for ongoing subscriptions
+/// - If a limit is reached, then the filter should return the first n events, typically in reverse chronological order
 public struct Filter:Sendable, RAW_convertible {
 	
 	public var ids: [NOSTR_id]
@@ -15,13 +29,16 @@ public struct Filter:Sendable, RAW_convertible {
 	
 	public var until: NOSTR_date?
 	
-	public init(ids: [NOSTR_id] = [], authors: [PublicKey] = [], kinds: [NOSTR_kind] = [], tags: [any NOSTR_tag] = [], since: NOSTR_date? = nil, until: NOSTR_date? = nil) {
+	public var limit: NOSTR_filter_limit?
+	
+	public init(ids: [NOSTR_id] = [], authors: [PublicKey] = [], kinds: [NOSTR_kind] = [], tags: [any NOSTR_tag] = [], since: NOSTR_date? = nil, until: NOSTR_date? = nil, limit: NOSTR_filter_limit? = nil) {
 		self.ids = ids
 		self.authors = authors
 		self.kinds = kinds
 		self.tags = tags
 		self.since = since
 		self.until = until
+		self.limit = limit
 	}
 	
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
@@ -86,11 +103,20 @@ public struct Filter:Sendable, RAW_convertible {
 			guard dataCount >= MemoryLayout<NOSTR_date>.size else { return nil }
 			until = NOSTR_date(RAW_staticbuff_seeking: &inputPtr)
 		}
+		
+		// limit
+		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
+		let limitExists = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+		dataCount -= MemoryLayout<Bytes1>.size
+		if limitExists == 1 {
+			guard dataCount >= MemoryLayout<NOSTR_filter_limit>.size else { return nil }
+			limit = NOSTR_filter_limit(RAW_staticbuff_seeking: &inputPtr)
+		}
 	}
 	
 	public func RAW_encode(count: inout RAW.size_t) {
-		// ids | author | kind | tag | since | until
-		count += MemoryLayout<Bytes1>.size * 6
+		// ids | author | kind | tag | since | until | limit
+		count += MemoryLayout<Bytes1>.size * 7
 		for id in ids {
 			id.RAW_encode(count: &count)
 		}
@@ -109,6 +135,9 @@ public struct Filter:Sendable, RAW_convertible {
 		}
 		if until != nil {
 			count += MemoryLayout<NOSTR_date>.size
+		}
+		if limit != nil {
+			count += MemoryLayout<NOSTR_filter_limit>.size
 		}
 	}
 	
@@ -156,6 +185,13 @@ public struct Filter:Sendable, RAW_convertible {
 			dest = until.RAW_encode(dest: dest)
 		}
 		
+		// limit
+		exists = Bytes1(RAW_native: UInt8(limit == nil ? 0 : 1))
+		dest = exists.RAW_encode(dest: dest)
+		if let limit = limit {
+			dest = limit.RAW_encode(dest: dest)
+		}
+		
 		return dest
 	}
 }
@@ -167,13 +203,19 @@ extension Filter {
 	public func apply<UnsignedEvent:NOSTR_event_unsigned>(to event: NOSTR_event_signed<UnsignedEvent>) -> Bool {
 		// make sure each filter tag is in the event tags
 		var hasTags: Bool = true
-		for tag in self.tags {
-			guard event.unsignedEvent.tags.contains(where: { eventTag in
-				tag.isEqual(to: eventTag)
-			}) else {
-				hasTags = false
-				continue
+		tagLoop: for tag in self.tags {
+			for eventTag in event.unsignedEvent.tags {
+				guard tag.NOSTR_tag_index_field == eventTag.NOSTR_tag_index_field else {
+					continue
+				}
+				// At least one value from the event must appear in the filter values
+				if tag.NOSTR_tag_values.contains(where: { tagValue in
+					tagValue.isEqual(to: eventTag.NOSTR_tag_values[0])
+				}) {
+					continue tagLoop
+				}
 			}
+			hasTags = false
 		}
 		if((self.ids == [] || self.ids.contains(event.unsignedEvent.id)) &&
 		   (self.authors == [] || self.authors.contains(event.unsignedEvent.publicKey)) &&

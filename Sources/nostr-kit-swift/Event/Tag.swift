@@ -70,4 +70,11 @@ public struct EventTag: NOSTR_tag {
 	}
 }
 
-
+extension EventTag {
+	public init(tagName:String, tagValues:[String]) {
+		NOSTR_tag_index_field = tagName.data(using: .utf8)!.withUnsafeBytes { ptr in
+			NOSTR_tag_name(RAW_staticbuff: ptr.baseAddress!)
+		}
+		NOSTR_tag_values = tagValues.map { NOSTR_tag_generic_value(stringLiteral: $0) }
+	}
+}
