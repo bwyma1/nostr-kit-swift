@@ -38,7 +38,7 @@ public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, 
 	}
 	
 	public func RAW_encode(count: inout RAW.size_t) {
-		count += MemoryLayout<NOSTR_message_type>.size
+		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<Bytes4>.size
 		subscriptionID.RAW_encode(count: &count)
 		event.RAW_encode(count: &count)
 	}
