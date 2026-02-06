@@ -3,8 +3,6 @@ import RAW_dh25519
 import RAW_sha256
 import RAW_ed25519
 
-public typealias PublicKey = RAW_dh25519.PublicKey
-
 public protocol NOSTR_event_content: Sendable, RAW_convertible { }
 
 public protocol NOSTR_event_unsigned: Sendable, Identifiable, RAW_convertible {

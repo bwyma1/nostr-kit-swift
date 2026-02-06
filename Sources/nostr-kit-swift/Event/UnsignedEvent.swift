@@ -1,4 +1,5 @@
 import RAW
+import RAW_dh25519
 
 @RAW_convertible_string_type<UTF8>(backing:RAW_byte.self)
 public struct StringContent: NOSTR_event_content, Comparable, ExpressibleByStringLiteral { }
