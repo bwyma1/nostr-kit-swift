@@ -28,12 +28,12 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 	}
 	
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
-		guard MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<Bytes1>.size <= count else { return nil }
-		var dataCount = count - (MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<Bytes1>.size)
+		guard MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<Bytes2>.size <= count else { return nil }
+		var dataCount = count - (MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<Bytes2>.size)
 		id = NOSTR_id(RAW_staticbuff_seeking: &inputPtr)
 		publicKey = PublicKey(RAW_staticbuff_seeking: &inputPtr)
 		date = NOSTR_date(RAW_staticbuff_seeking: &inputPtr)
-		let tagCount = Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native()
+		let tagCount = Bytes2(RAW_staticbuff_seeking: &inputPtr).RAW_native()
 		tags = []
 		for _ in 0..<Int(tagCount) {
 			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
@@ -58,7 +58,7 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 			tag.RAW_encode(count: &count)
 			count += MemoryLayout<Bytes4>.size
 		}
-		count += MemoryLayout<Bytes1>.size + MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<NOSTR_kind>.size
+		count += MemoryLayout<Bytes2>.size + MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<NOSTR_kind>.size
 		content.RAW_encode(count: &count)
 	}
 	
@@ -66,7 +66,7 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 		var dest = id.RAW_encode(dest: dest)
 		dest = publicKey.RAW_encode(dest: dest)
 		dest = date.RAW_encode(dest: dest)
-		let tagCount = Bytes1(RAW_native: UInt8(tags.count))
+		let tagCount = Bytes2(RAW_native: UInt16(tags.count))
 		dest = tagCount.RAW_encode(dest: dest)
 		for tag in tags {
 			var tagLength = 0; tag.RAW_encode(count: &tagLength)
