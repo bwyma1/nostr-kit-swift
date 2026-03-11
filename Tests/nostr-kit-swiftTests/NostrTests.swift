@@ -51,12 +51,7 @@ extension NostrTests {
 			defer { buffer.deallocate() }
 			_ = event.RAW_encode(dest:buffer.baseAddress!)
 			let decodedEvent = UnsignedEvent<StringContent>(RAW_decode: buffer.baseAddress!, count: eventLen)!
-			#expect(event.id == decodedEvent.id)
-			#expect(event.publicKey == decodedEvent.publicKey)
-			#expect(event.date == decodedEvent.date)
-			#expect(event.tags as! [EventTag] == decodedEvent.tags as! [EventTag])
-			#expect(event.kind == decodedEvent.kind)
-			#expect(event.content == decodedEvent.content)
+			#expect(event == decodedEvent)
 		}
 		
 		@Test func encodeDecodeSignedEvent() throws {
@@ -158,7 +153,7 @@ extension NostrTests {
 		@Test func encodeDecodeREQMessage() throws {
 			let reqFilter = Filter(ids: [], authors: [], kinds: [], tags: [], since: nil, until: nil)
 			let filters = [reqFilter, reqFilter]
-			let reqMessage = NOSTR_message_REQ(subscriptionID: "home", filters: filters)
+			let reqMessage = NOSTR_message_REQ(subscriptionID: "home", filters: filters, from: PublicKey(privateKey: NostrEventTests.staticPrivateKey))
 			var reqLen = 0; reqMessage.RAW_encode(count: &reqLen)
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: reqLen)
 			defer { buffer.deallocate() }

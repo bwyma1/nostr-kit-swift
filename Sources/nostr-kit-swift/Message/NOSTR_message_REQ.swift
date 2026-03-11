@@ -1,4 +1,5 @@
 import RAW
+import RAW_dh25519
 
 /// Sent by the client to the server with an array of filters.
 /// The server stores the REQ for the subscription and sends over the filtered data.
@@ -11,9 +12,12 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 	
 	public var filters:[Filter]
 	
-	public init(subscriptionID:String, filters:[Filter]) {
+	public var user:PublicKey
+	
+	public init(subscriptionID:String, filters:[Filter], from user:PublicKey) {
 		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
 		self.filters = filters
+		self.user = user
 	}
 	
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
@@ -46,10 +50,16 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 			filters.append(filter)
 		}
 		self.filters = filters
+		
+		guard dataCount == MemoryLayout<PublicKey>.size else { return nil }
+		self.user = PublicKey(RAW_staticbuff_seeking: &inputPtr)
+		dataCount -= MemoryLayout<PublicKey>.size
+		
+		guard dataCount == 0 else { return nil }
 	}
 	
 	public func RAW_encode(count: inout RAW.size_t) {
-		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<Bytes1>.size + MemoryLayout<Bytes4>.size * (filters.count + 1)
+		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<PublicKey>.size + MemoryLayout<Bytes1>.size + MemoryLayout<Bytes4>.size * (filters.count + 1)
 		subscriptionID.RAW_encode(count: &count)
 		for filter in filters {
 			filter.RAW_encode(count: &count)
@@ -71,6 +81,8 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 			dest = filterLengthBytes.RAW_encode(dest: dest)
 			dest = filter.RAW_encode(dest: dest)
 		}
+		
+		dest = user.RAW_encode(dest: dest)
 		return dest
 	}
 }

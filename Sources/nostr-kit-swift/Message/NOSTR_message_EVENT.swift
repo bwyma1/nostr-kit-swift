@@ -19,6 +19,11 @@ public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, 
 		self.event = event
 	}
 	
+	public init(subscriptionID:NOSTR_subscription_ID, event:NOSTR_event_signed<UnsignedEvent>) {
+		self.subscriptionID = subscriptionID
+		self.event = event
+	}
+	
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
 		guard count >= MemoryLayout<Bytes4>.size else { return nil }
 		let subscriptionIDLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())

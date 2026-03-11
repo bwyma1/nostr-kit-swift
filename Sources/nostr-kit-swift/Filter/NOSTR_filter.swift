@@ -2,6 +2,7 @@ import RAW
 import RAW_dh25519
 
 @RAW_staticbuff(bytes: 8)
+@RAW_staticbuff_fixedwidthinteger_type<UInt64>(bigEndian:true)
 public struct NOSTR_filter_limit:Sendable { }
 
 /// List Attributes (ids, authors, kinds, and tag filters like #e):
@@ -204,13 +205,13 @@ extension Filter {
 		// make sure each filter tag is in the event tags
 		var hasTags: Bool = true
 		tagLoop: for tag in self.tags {
-			for eventTag in event.unsignedEvent.tags {
+			for eventTag in event.unsignedEvent.tags.array {
 				guard tag.NOSTR_tag_index_field == eventTag.NOSTR_tag_index_field else {
 					continue
 				}
 				// At least one value from the event must appear in the filter values
-				if tag.NOSTR_tag_values.contains(where: { tagValue in
-					tagValue.isEqual(to: eventTag.NOSTR_tag_values[0])
+				if tag.NOSTR_tag_values.array.contains(where: { tagValue in
+					tagValue.isEqual(to: eventTag.NOSTR_tag_values.array[0])
 				}) {
 					continue tagLoop
 				}

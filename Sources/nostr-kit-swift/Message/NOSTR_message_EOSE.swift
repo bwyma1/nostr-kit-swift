@@ -12,6 +12,10 @@ public struct NOSTR_message_EOSE:Sendable, RAW_convertible {
 		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
 	}
 	
+	public init(subscriptionID:NOSTR_subscription_ID) {
+		self.subscriptionID = subscriptionID
+	}
+	
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
 		guard count >= MemoryLayout<Bytes4>.size else { return nil }
 		let subscriptionIDLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())

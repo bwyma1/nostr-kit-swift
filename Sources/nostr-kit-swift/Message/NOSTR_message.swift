@@ -2,6 +2,7 @@ import RAW
 
 public enum NOSTR_message_error: Error {
 	case badDecode
+	case badSubscriptionID
 }
 
 public enum NOSTR_message<UnsignedEvent: NOSTR_event_unsigned> {

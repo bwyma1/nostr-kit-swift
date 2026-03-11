@@ -1,11 +1,12 @@
+import Foundation
 import RAW
 import RAW_dh25519
 import RAW_sha256
 import RAW_ed25519
 
-public protocol NOSTR_event_content: Sendable, RAW_convertible { }
+public protocol NOSTR_event_content: Sendable, Hashable, RAW_convertible { }
 
-public protocol NOSTR_event_unsigned: Sendable, Identifiable, RAW_convertible {
+public protocol NOSTR_event_unsigned: Sendable, Hashable, Identifiable, RAW_convertible {
 	
 	var id:NOSTR_id { get }
 	
@@ -13,7 +14,7 @@ public protocol NOSTR_event_unsigned: Sendable, Identifiable, RAW_convertible {
 	
 	var date:NOSTR_date { get set }
 	
-	var tags:[any NOSTR_tag] { get set }
+	var tags:NOSTR_tags { get set }
 	
 	var kind:NOSTR_kind { get set }
 	
@@ -25,6 +26,65 @@ public protocol NOSTR_event_unsigned: Sendable, Identifiable, RAW_convertible {
 
 extension NOSTR_event_unsigned {
 	public init(publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], kind:NOSTR_kind, content:ContentType) throws {
+		var hasher = RAW_sha256.Hasher<NOSTR_id>()
+		
+		try hasher.update(publicKey)
+		try hasher.update(date)
+		for tag in tags {
+			var tagLength = 0; tag.RAW_encode(count: &tagLength)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: tagLength)
+			defer { buffer.deallocate() }
+			tag.RAW_encode(dest: buffer.baseAddress!)
+			try hasher.update(buffer)
+		}
+		try hasher.update(kind)
+		
+		var contentLength = 0; content.RAW_encode(count: &contentLength)
+		let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLength)
+		defer { buffer.deallocate() }
+		content.RAW_encode(dest: buffer.baseAddress!)
+		try hasher.update(buffer)
+		
+		var id = NOSTR_id(RAW_staticbuff: NOSTR_id.RAW_staticbuff_zeroed())
+		try id.RAW_access_staticbuff_mutating({ ptr in
+			try hasher.finish(into: ptr)
+		})
+		
+		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, kind: kind, content: content)
+	}
+	
+	public init(publicKey:PublicKey, tags:[any NOSTR_tag], kind:NOSTR_kind, content:ContentType) throws {
+		let date = NOSTR_date(date: Date())
+		var hasher = RAW_sha256.Hasher<NOSTR_id>()
+		
+		try hasher.update(publicKey)
+		try hasher.update(date)
+		for tag in tags {
+			var tagLength = 0; tag.RAW_encode(count: &tagLength)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: tagLength)
+			defer { buffer.deallocate() }
+			tag.RAW_encode(dest: buffer.baseAddress!)
+			try hasher.update(buffer)
+		}
+		try hasher.update(kind)
+		
+		var contentLength = 0; content.RAW_encode(count: &contentLength)
+		let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLength)
+		defer { buffer.deallocate() }
+		content.RAW_encode(dest: buffer.baseAddress!)
+		try hasher.update(buffer)
+		
+		var id = NOSTR_id(RAW_staticbuff: NOSTR_id.RAW_staticbuff_zeroed())
+		try id.RAW_access_staticbuff_mutating({ ptr in
+			try hasher.finish(into: ptr)
+		})
+		
+		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, kind: kind, content: content)
+	}
+	
+	public init(publicKey:PublicKey, tags:[any NOSTR_tag], kind:UInt32, content:ContentType) throws {
+		let date = NOSTR_date(date: Date())
+		let kind = NOSTR_kind(RAW_native: kind)
 		var hasher = RAW_sha256.Hasher<NOSTR_id>()
 		
 		try hasher.update(publicKey)
@@ -68,52 +128,7 @@ extension NOSTR_event_unsigned {
 	}
 }
 
-public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, Identifiable, RAW_convertible, RAW_accessible {
-	public func RAW_access<R, E>(_ body: (UnsafeBufferPointer<UInt8>) throws(E) -> R) throws(E) -> R where E : Error {
-		var count: RAW.size_t = 0
-		self.RAW_encode(count: &count)
-		
-		return try! withUnsafeTemporaryAllocation(
-			byteCount: count,
-			alignment: MemoryLayout<UInt8>.alignment
-		) { rawBuffer in
-			let base = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-			_ = self.RAW_encode(dest: base)
-
-			let buffer = UnsafeBufferPointer(start: base, count: count)
-			return try body(buffer)
-		}
-	}
-	
-	public mutating func RAW_access_mutating<R, E>(_ body: (UnsafeMutableBufferPointer<UInt8>) throws(E) -> R) throws(E) -> R where E : Error {
-		var count: RAW.size_t = 0
-		self.RAW_encode(count: &count)
-
-		return try! withUnsafeTemporaryAllocation(
-			byteCount: count,
-			alignment: MemoryLayout<UInt8>.alignment
-		) { rawBuffer in
-			let base = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-			_ = self.RAW_encode(dest: base)
-
-			let buffer = UnsafeMutableBufferPointer(start: base, count: count)
-			let result = try body(buffer)
-
-			// Re-decode into self
-			let readPtr = UnsafeRawPointer(base)
-			guard let decoded = NOSTR_event_signed(
-				RAW_decode: readPtr,
-				count: count
-			) else {
-				fatalError("RAW_access_mutating produced invalid state")
-			}
-
-			self = decoded
-			return result
-		}
-	}
-	
-	
+public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, Hashable, Identifiable, RAW_convertible, RAW_accessible {
 	public let sig:NOSTR_sig
 	// For identifiable protocol
 	public var id: NOSTR_sig {

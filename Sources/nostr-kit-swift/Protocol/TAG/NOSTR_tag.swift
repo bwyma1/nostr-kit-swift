@@ -1,7 +1,7 @@
 import Foundation
 import RAW
 
-public protocol NOSTR_tag_value: Sendable, Comparable, RAW_convertible, RAW_accessible { }
+public protocol NOSTR_tag_value: Sendable, Hashable, Comparable, RAW_convertible, RAW_accessible { }
 
 extension NOSTR_tag_value {
 	public func isEqual(to other: any NOSTR_tag_value) -> Bool {
@@ -27,11 +27,11 @@ extension NOSTR_tag_value {
 ///		- as attached to relay filters (dynamic tags only)
 ///			- `{"#p", "dynamic tag name"...}`
 /// - note: tags cannot be empty, and must have a name of at least one character.
-public protocol NOSTR_tag: Sendable, Comparable, RAW_convertible {
+public protocol NOSTR_tag: Sendable, Hashable, Comparable, RAW_convertible {
 	
 	var NOSTR_tag_index_field:NOSTR_tag_name { get }
 	
-	var NOSTR_tag_values:[any NOSTR_tag_value] { get }
+	var NOSTR_tag_values:NOSTR_tag_values_wrapper { get set }
 	
 	init(NOSTR_tag_index_field:NOSTR_tag_name, NOSTR_tag_values:[any NOSTR_tag_value]) throws
 }
@@ -60,21 +60,21 @@ extension NOSTR_tag {
 		guard lhs.NOSTR_tag_index_field == rhs.NOSTR_tag_index_field else {
 			return false
 		}
-		guard lhs.NOSTR_tag_values.count == rhs.NOSTR_tag_values.count else {
+		guard lhs.NOSTR_tag_values.array.count == rhs.NOSTR_tag_values.array.count else {
 			return false
 		}
 		var rhsRemaining = rhs.NOSTR_tag_values
 
-		for lVal in lhs.NOSTR_tag_values {
+		for lVal in lhs.NOSTR_tag_values.array {
 			var foundIndex: Int? = nil
-			for (i, rVal) in rhsRemaining.enumerated() {
+			for (i, rVal) in rhsRemaining.array.enumerated() {
 				if lVal.isEqual(to: rVal) {
 					foundIndex = i
 					break
 				}
 			}
 			guard let idx = foundIndex else { return false }
-			rhsRemaining.remove(at: idx)
+			rhsRemaining.array.remove(at: idx)
 		}
 
 		return true
@@ -84,11 +84,11 @@ extension NOSTR_tag {
 		if lhs.NOSTR_tag_index_field != rhs.NOSTR_tag_index_field {
 			return lhs.NOSTR_tag_index_field < rhs.NOSTR_tag_index_field
 		}
-		if lhs.NOSTR_tag_values.count != rhs.NOSTR_tag_values.count {
-			return lhs.NOSTR_tag_values.count < rhs.NOSTR_tag_values.count
+		if lhs.NOSTR_tag_values.array.count != rhs.NOSTR_tag_values.array.count {
+			return lhs.NOSTR_tag_values.array.count < rhs.NOSTR_tag_values.array.count
 		}
-		let lhsSorted = lhs.NOSTR_tag_values.sorted(by: compareValues)
-		let rhsSorted = rhs.NOSTR_tag_values.sorted(by: compareValues)
+		let lhsSorted = lhs.NOSTR_tag_values.array.sorted(by: compareValues)
+		let rhsSorted = rhs.NOSTR_tag_values.array.sorted(by: compareValues)
 		
 		for (lVal, rVal) in zip(lhsSorted, rhsSorted) {
 			if compareValues(lVal, rVal) { return true }
