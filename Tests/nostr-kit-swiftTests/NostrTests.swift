@@ -17,6 +17,7 @@ extension NostrTests {
 		static let staticPrivateKey = MemoryGuarded<PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
 		let tags: [EventTag]
 		let date:NOSTR_date
+		let application:NOSTR_application
 		let kind:NOSTR_kind
 		let publicKey:PublicKey
 		let privateKey:MemoryGuarded<Ed25519.PrivateKey>
@@ -30,9 +31,10 @@ extension NostrTests {
 			tags = [tag, tag2, tag3]
 			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
 			date = NOSTR_date(date: Date())
+			application = NOSTR_application(RAW_native: 2)
 			kind = NOSTR_kind(RAW_native: 1)
 			content = StringContent(stringLiteral: "Some Nostr Content")
-			event = try UnsignedEvent(publicKey: publicKey, date: date, tags: [tag, tag2], kind: kind, content: content)
+			event = try UnsignedEvent(publicKey: publicKey, date: date, tags: [tag, tag2], application: application, kind: kind, content: content)
 		}
 		
 		@Test func encodeDecodeTag() throws {
@@ -84,7 +86,7 @@ extension NostrTests {
 		@Test func encodeDecodeFilter() throws {
 			let since = NOSTR_date(0)
 			let until = NOSTR_date(1000)
-			let filter = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags, since: since, until: until)
+			let filter = Filter(ids: [event.id], authors: [event.publicKey], applications: [application], kinds: [event.kind], tags: tags, since: since, until: until)
 			var filterLen = 0; filter.RAW_encode(count: &filterLen)
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: filterLen)
 			defer { buffer.deallocate() }
@@ -151,7 +153,7 @@ extension NostrTests {
 	
 	struct NostrMessageTests {
 		@Test func encodeDecodeREQMessage() throws {
-			let reqFilter = Filter(ids: [], authors: [], kinds: [], tags: [], since: nil, until: nil)
+			let reqFilter = Filter()
 			let filters = [reqFilter, reqFilter]
 			let reqMessage = NOSTR_message_REQ(subscriptionID: "home", filters: filters, from: PublicKey(privateKey: NostrEventTests.staticPrivateKey))
 			var reqLen = 0; reqMessage.RAW_encode(count: &reqLen)

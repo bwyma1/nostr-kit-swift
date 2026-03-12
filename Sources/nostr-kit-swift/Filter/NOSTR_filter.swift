@@ -22,6 +22,8 @@ public struct Filter:Sendable, RAW_convertible {
 	
 	public var authors: [PublicKey]
 	
+	public var applications: [NOSTR_application]
+	
 	public var kinds: [NOSTR_kind]
 	
 	public var tags: [any NOSTR_tag]
@@ -32,10 +34,22 @@ public struct Filter:Sendable, RAW_convertible {
 	
 	public var limit: NOSTR_filter_limit?
 	
-	public init(ids: [NOSTR_id] = [], authors: [PublicKey] = [], kinds: [NOSTR_kind] = [], tags: [any NOSTR_tag] = [], since: NOSTR_date? = nil, until: NOSTR_date? = nil, limit: NOSTR_filter_limit? = nil) {
+	public init(ids: [NOSTR_id] = [], authors: [PublicKey] = [], applications: [NOSTR_application] = [], kinds: [NOSTR_kind] = [], tags: [any NOSTR_tag] = [], since: NOSTR_date? = nil, until: NOSTR_date? = nil, limit: NOSTR_filter_limit? = nil) {
 		self.ids = ids
 		self.authors = authors
+		self.applications = applications
 		self.kinds = kinds
+		self.tags = tags
+		self.since = since
+		self.until = until
+		self.limit = limit
+	}
+	
+	public init(ids: [NOSTR_id] = [], authors: [PublicKey] = [], applications: [UInt16], kinds: [UInt32], tags: [any NOSTR_tag] = [], since: NOSTR_date? = nil, until: NOSTR_date? = nil, limit: NOSTR_filter_limit? = nil) {
+		self.ids = ids
+		self.authors = authors
+		self.applications = applications.map { NOSTR_application(RAW_native: $0) }
+		self.kinds = kinds.map { NOSTR_kind(RAW_native: $0) }
 		self.tags = tags
 		self.since = since
 		self.until = until
@@ -64,6 +78,17 @@ public struct Filter:Sendable, RAW_convertible {
 			authors.append(author)
 		}
 		dataCount = count - MemoryLayout<Bytes1>.size - MemoryLayout<PublicKey>.size * authorCount
+		
+		// applications
+		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
+		let applicationCount = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+		guard dataCount >= MemoryLayout<Bytes1>.size + MemoryLayout<NOSTR_application>.size * applicationCount else { return nil }
+		applications = []
+		for _ in 0..<applicationCount{
+			let application = NOSTR_application(RAW_staticbuff_seeking: &inputPtr)
+			applications.append(application)
+		}
+		dataCount = count - MemoryLayout<Bytes1>.size - MemoryLayout<NOSTR_application>.size * applicationCount
 		
 		// kinds
 		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
@@ -116,13 +141,16 @@ public struct Filter:Sendable, RAW_convertible {
 	}
 	
 	public func RAW_encode(count: inout RAW.size_t) {
-		// ids | author | kind | tag | since | until | limit
-		count += MemoryLayout<Bytes1>.size * 7
+		// ids | author | application | kind | tag | since | until | limit
+		count += MemoryLayout<Bytes1>.size * 8
 		for id in ids {
 			id.RAW_encode(count: &count)
 		}
 		for author in authors {
 			author.RAW_encode(count: &count)
+		}
+		for application in applications {
+			application.self.RAW_encode(count: &count)
 		}
 		for kind in kinds {
 			kind.self.RAW_encode(count: &count)
@@ -155,6 +183,13 @@ public struct Filter:Sendable, RAW_convertible {
 		dest = authorCount.RAW_encode(dest: dest)
 		for author in authors {
 			dest = author.RAW_encode(dest: dest)
+		}
+		
+		// applications
+		let applicationCount = Bytes1(RAW_native: UInt8(applications.count))
+		dest = applicationCount.RAW_encode(dest: dest)
+		for application in applications {
+			dest = application.RAW_encode(dest: dest)
 		}
 		
 		// kinds
@@ -220,6 +255,7 @@ extension Filter {
 		}
 		if((self.ids == [] || self.ids.contains(event.unsignedEvent.id)) &&
 		   (self.authors == [] || self.authors.contains(event.unsignedEvent.publicKey)) &&
+		   (self.applications == [] || self.applications.contains(event.unsignedEvent.application)) &&
 		   (self.kinds == [] || self.kinds.contains(event.unsignedEvent.kind)) &&
 		   (self.since == nil || self.since! <= event.unsignedEvent.date) &&
 		   (self.until == nil || self.until! >= event.unsignedEvent.date) &&

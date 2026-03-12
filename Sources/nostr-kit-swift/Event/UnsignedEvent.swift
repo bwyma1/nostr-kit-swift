@@ -36,15 +36,18 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 	
 	public var tags: NOSTR_tags
 	
+	public var application: NOSTR_application
+	
 	public var kind: NOSTR_kind
 	
 	public var content: Content
 	
-	public init(id: NOSTR_id, publicKey: PublicKey, date: NOSTR_date, tags: [any NOSTR_tag], kind: NOSTR_kind, content: Content) {
+	public init(id: NOSTR_id, publicKey: PublicKey, date: NOSTR_date, tags: [any NOSTR_tag], application: NOSTR_application, kind: NOSTR_kind, content: Content) {
 		self.id = id
 		self.publicKey = publicKey
 		self.date = date
 		self.tags = NOSTR_tags(array: tags)
+		self.application = application
 		self.kind = kind
 		self.content = content
 	}
@@ -67,6 +70,11 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 			tagArray.append(tag)
 		}
 		tags = NOSTR_tags(array: tagArray)
+		
+		guard dataCount >= MemoryLayout<NOSTR_application>.size else { return nil }
+		application = NOSTR_application(RAW_staticbuff_seeking: &inputPtr)
+		dataCount -= MemoryLayout<NOSTR_application>.size
+		
 		guard dataCount >= MemoryLayout<NOSTR_kind>.size else { return nil }
 		kind = NOSTR_kind(RAW_staticbuff_seeking: &inputPtr)
 		dataCount -= MemoryLayout<NOSTR_kind>.size
@@ -81,7 +89,7 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 			tag.RAW_encode(count: &count)
 			count += MemoryLayout<Bytes4>.size
 		}
-		count += MemoryLayout<Bytes2>.size + MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<NOSTR_kind>.size
+		count += MemoryLayout<Bytes2>.size + MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<NOSTR_application>.size + MemoryLayout<NOSTR_kind>.size
 		content.RAW_encode(count: &count)
 	}
 	
@@ -97,6 +105,7 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 			dest = tagLengthBytes.RAW_encode(dest: dest)
 			dest = tag.RAW_encode(dest: dest)
 		}
+		dest = application.RAW_encode(dest: dest)
 		dest = kind.RAW_encode(dest: dest)
 		dest = content.RAW_encode(dest: dest)
 		return dest

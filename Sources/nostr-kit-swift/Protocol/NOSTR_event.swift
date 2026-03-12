@@ -16,16 +16,18 @@ public protocol NOSTR_event_unsigned: Sendable, Hashable, Identifiable, RAW_conv
 	
 	var tags:NOSTR_tags { get set }
 	
+	var application:NOSTR_application { get set }
+	
 	var kind:NOSTR_kind { get set }
 	
 	associatedtype ContentType:NOSTR_event_content
 	var content:ContentType { get set }
 	
-	init(id:NOSTR_id, publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], kind:NOSTR_kind, content:ContentType)
+	init(id:NOSTR_id, publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], application:NOSTR_application, kind:NOSTR_kind, content:ContentType)
 }
 
 extension NOSTR_event_unsigned {
-	public init(publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], kind:NOSTR_kind, content:ContentType) throws {
+	public init(publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], application:NOSTR_application, kind:NOSTR_kind, content:ContentType) throws {
 		var hasher = RAW_sha256.Hasher<NOSTR_id>()
 		
 		try hasher.update(publicKey)
@@ -37,6 +39,7 @@ extension NOSTR_event_unsigned {
 			tag.RAW_encode(dest: buffer.baseAddress!)
 			try hasher.update(buffer)
 		}
+		try hasher.update(application)
 		try hasher.update(kind)
 		
 		var contentLength = 0; content.RAW_encode(count: &contentLength)
@@ -50,10 +53,10 @@ extension NOSTR_event_unsigned {
 			try hasher.finish(into: ptr)
 		})
 		
-		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, kind: kind, content: content)
+		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
 	}
 	
-	public init(publicKey:PublicKey, tags:[any NOSTR_tag], kind:NOSTR_kind, content:ContentType) throws {
+	public init(publicKey:PublicKey, tags:[any NOSTR_tag], application:NOSTR_application, kind:NOSTR_kind, content:ContentType) throws {
 		let date = NOSTR_date(date: Date())
 		var hasher = RAW_sha256.Hasher<NOSTR_id>()
 		
@@ -66,6 +69,7 @@ extension NOSTR_event_unsigned {
 			tag.RAW_encode(dest: buffer.baseAddress!)
 			try hasher.update(buffer)
 		}
+		try hasher.update(application)
 		try hasher.update(kind)
 		
 		var contentLength = 0; content.RAW_encode(count: &contentLength)
@@ -79,12 +83,12 @@ extension NOSTR_event_unsigned {
 			try hasher.finish(into: ptr)
 		})
 		
-		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, kind: kind, content: content)
+		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
 	}
 	
-	public init(publicKey:PublicKey, tags:[any NOSTR_tag], kind:UInt32, content:ContentType) throws {
-		let date = NOSTR_date(date: Date())
+	public init(publicKey:PublicKey, date:NOSTR_date = NOSTR_date(date: Date()), tags:[any NOSTR_tag], application:UInt16, kind:UInt32, content:ContentType) throws {
 		let kind = NOSTR_kind(RAW_native: kind)
+		let application = NOSTR_application(RAW_native: application)
 		var hasher = RAW_sha256.Hasher<NOSTR_id>()
 		
 		try hasher.update(publicKey)
@@ -96,6 +100,7 @@ extension NOSTR_event_unsigned {
 			tag.RAW_encode(dest: buffer.baseAddress!)
 			try hasher.update(buffer)
 		}
+		try hasher.update(application)
 		try hasher.update(kind)
 		
 		var contentLength = 0; content.RAW_encode(count: &contentLength)
@@ -109,7 +114,7 @@ extension NOSTR_event_unsigned {
 			try hasher.finish(into: ptr)
 		})
 		
-		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, kind: kind, content: content)
+		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
 	}
 }
 
