@@ -155,7 +155,7 @@ extension NostrTests {
 		@Test func encodeDecodeREQMessage() throws {
 			let reqFilter = Filter()
 			let filters = [reqFilter, reqFilter]
-			let reqMessage = NOSTR_message_REQ(subscriptionID: "home", filters: filters, from: PublicKey(privateKey: NostrEventTests.staticPrivateKey))
+			let reqMessage = NOSTR_message_REQ(subscriptionID: "home", filters: filters, from: PublicKey(privateKey: NostrEventTests.staticPrivateKey), fetchHistory: false)
 			var reqLen = 0; reqMessage.RAW_encode(count: &reqLen)
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: reqLen)
 			defer { buffer.deallocate() }

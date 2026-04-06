@@ -111,5 +111,3 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 		return dest
 	}
 }
-
-

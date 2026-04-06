@@ -100,4 +100,12 @@ extension EventTag {
 		}
 		NOSTR_tag_values = NOSTR_tag_values_wrapper(array:[NOSTR_tag_generic_value(stringLiteral: dTag)])
 	}
+	
+	public init(dTag: any NOSTR_tag_value) {
+		let tagName = "d"
+		NOSTR_tag_index_field = tagName.data(using: .utf8)!.withUnsafeBytes { ptr in
+			NOSTR_tag_name(RAW_staticbuff: ptr.baseAddress!)
+		}
+		NOSTR_tag_values = NOSTR_tag_values_wrapper(array:[dTag])
+	}
 }

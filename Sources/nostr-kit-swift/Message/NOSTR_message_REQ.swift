@@ -14,10 +14,13 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 	
 	public var user:PublicKey
 	
-	public init(subscriptionID:String, filters:[Filter], from user:PublicKey) {
+	public var fetchHistory:EncodedBool
+	
+	public init(subscriptionID:String, filters:[Filter], from user:PublicKey, fetchHistory:Bool) {
 		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
 		self.filters = filters
 		self.user = user
+		self.fetchHistory = EncodedBool(fetchHistory)
 	}
 	
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
@@ -51,15 +54,19 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 		}
 		self.filters = filters
 		
-		guard dataCount == MemoryLayout<PublicKey>.size else { return nil }
+		guard dataCount >= MemoryLayout<PublicKey>.size else { return nil }
 		self.user = PublicKey(RAW_staticbuff_seeking: &inputPtr)
 		dataCount -= MemoryLayout<PublicKey>.size
+		
+		guard dataCount >= MemoryLayout<EncodedBool>.size else { return nil }
+		self.fetchHistory = EncodedBool(RAW_staticbuff_seeking: &inputPtr)
+		dataCount -= MemoryLayout<EncodedBool>.size
 		
 		guard dataCount == 0 else { return nil }
 	}
 	
 	public func RAW_encode(count: inout RAW.size_t) {
-		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<PublicKey>.size + MemoryLayout<Bytes1>.size + MemoryLayout<Bytes4>.size * (filters.count + 1)
+		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<PublicKey>.size + MemoryLayout<Bytes1>.size + MemoryLayout<Bytes4>.size * (filters.count + 1) + MemoryLayout<EncodedBool>.size
 		subscriptionID.RAW_encode(count: &count)
 		for filter in filters {
 			filter.RAW_encode(count: &count)
@@ -83,6 +90,7 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 		}
 		
 		dest = user.RAW_encode(dest: dest)
+		dest = fetchHistory.RAW_encode(dest: dest)
 		return dest
 	}
 }

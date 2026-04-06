@@ -8,6 +8,10 @@ import RAW_dh25519
 
 public struct NOSTR_tag_values_wrapper: Hashable, Sendable {
 	public var array: [any NOSTR_tag_value]
+	
+	public init(array: [any NOSTR_tag_value]) {
+		self.array = array
+	}
 
 	public static func ==(lhs: NOSTR_tag_values_wrapper, rhs: NOSTR_tag_values_wrapper) -> Bool {
 		guard lhs.array.count == rhs.array.count else { return false }
@@ -31,7 +35,7 @@ public struct EventTag: NOSTR_tag, Hashable, RAW_accessible {
 	// Use 2 bytes for the length of each tag value
 	public var NOSTR_tag_values: NOSTR_tag_values_wrapper
 	
-	public init(NOSTR_tag_index_field: NOSTR_tag_name, NOSTR_tag_values: [any NOSTR_tag_value]) throws {
+	public init(NOSTR_tag_index_field: NOSTR_tag_name, NOSTR_tag_values: [any NOSTR_tag_value]) {
 		self.NOSTR_tag_index_field = NOSTR_tag_index_field
 		self.NOSTR_tag_values = NOSTR_tag_values_wrapper(array: NOSTR_tag_values)
 	}
@@ -56,6 +60,7 @@ public struct EventTag: NOSTR_tag, Hashable, RAW_accessible {
 			inputPtr = inputPtr.advanced(by: length)
 			values.append(value)
 		}
+		guard dataCount == 0 else { return nil }
 		NOSTR_tag_index_field = tagName
 		NOSTR_tag_values = NOSTR_tag_values_wrapper(array: values)
 	}

@@ -19,6 +19,22 @@ public struct EncodedUInt64:Sendable, ExpressibleByIntegerLiteral, NOSTR_tag_val
 @RAW_staticbuff_fixedwidthinteger_type<UInt128>(bigEndian:true)
 public struct EncodedUInt128:Sendable, ExpressibleByIntegerLiteral, NOSTR_tag_value {}
 
+@RAW_staticbuff(bytes:2)
+@RAW_staticbuff_fixedwidthinteger_type<Int16>(bigEndian:true)
+public struct EncodedInt16:Sendable, ExpressibleByIntegerLiteral, NOSTR_tag_value {}
+
+@RAW_staticbuff(bytes:4)
+@RAW_staticbuff_fixedwidthinteger_type<Int32>(bigEndian:true)
+public struct EncodedInt32:Sendable, ExpressibleByIntegerLiteral, NOSTR_tag_value {}
+
+@RAW_staticbuff(bytes:8)
+@RAW_staticbuff_fixedwidthinteger_type<Int64>(bigEndian:true)
+public struct EncodedInt64:Sendable, ExpressibleByIntegerLiteral, NOSTR_tag_value {}
+
+@RAW_staticbuff(bytes:16)
+@RAW_staticbuff_fixedwidthinteger_type<Int128>(bigEndian:true)
+public struct EncodedInt128:Sendable, ExpressibleByIntegerLiteral, NOSTR_tag_value {}
+
 @RAW_staticbuff(bytes: 4)
 @RAW_staticbuff_binaryfloatingpoint_type<Float>
 public struct EncodedFloat:Sendable, ExpressibleByFloatLiteral, NOSTR_tag_value {}
