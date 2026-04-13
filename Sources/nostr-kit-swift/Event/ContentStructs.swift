@@ -57,3 +57,51 @@ public struct EncodedString:Sendable, Equatable, Hashable, Comparable, Expressib
 		return String(self)
 	}
 }
+
+@RAW_staticbuff(bytes:8)
+@RAW_staticbuff_fixedwidthinteger_type<UInt64>(bigEndian: true)
+public struct EncodedDate: Sendable, Hashable, Comparable, RAW_convertible, NOSTR_tag_value {
+	public init(date: Foundation.Date) {
+		self = EncodedDate(RAW_native: UInt64(date.timeIntervalSince1970))
+	}
+	public init(_ date:UInt64) {
+		self = EncodedDate(RAW_native: date)
+	}
+	public func currentTime() -> UInt64 {
+		return self.RAW_native()
+	}
+	public func currentDate() -> Foundation.Date {
+		Foundation.Date(timeIntervalSince1970: TimeInterval(self.RAW_native()))
+	}
+}
+
+public struct EncodedData: Sendable, Hashable, Comparable, RAW_convertible {
+	let data: Data
+	
+	public static func < (lhs: Self, rhs: Self) -> Bool {
+		lhs.data.lexicographicallyPrecedes(rhs.data)
+	}
+	
+	public init(_ data:Data) {
+		self.data = data
+	}
+	
+	
+	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+		self.data = Data(bytes: inputPtr, count: count)
+	}
+
+	public func RAW_encode(count: inout RAW.size_t) {
+		count += self.data.count
+	}
+
+	public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
+		data.withUnsafeBytes { srcBuffer in
+			guard let srcBase = srcBuffer.baseAddress else {
+				return
+			}
+			dest.update(from: srcBase.assumingMemoryBound(to: UInt8.self), count: srcBuffer.count)
+		}
+		return dest.advanced(by: data.count)
+	}
+}

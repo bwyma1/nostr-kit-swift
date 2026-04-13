@@ -2,6 +2,10 @@ import Testing
 @testable import nostr_kit_swift
 import Foundation
 import RAW
+import ContentMacros
+import SwiftSyntaxMacros
+import SwiftSyntaxMacroExpansion
+import SwiftSyntaxMacrosGenericTestSupport
 
 @NostrContent
 struct BasicContent: Sendable, Equatable, Hashable {
@@ -15,11 +19,75 @@ struct ComplexContent: Sendable, Equatable, Hashable {
 	public var dictContent: [EncodedString: [EncodedUInt16?]]?
 }
 
+let testMacros: [String: MacroSpec] = [
+	"NostrContent": .init(type: NostrContent.self)
+]
+
 extension NostrTests {
 	@Suite("Nostr Macro Tests",
 		   .serialized
 	)
 	struct NostrMacroTests {
+		
+		@Test func testMacro() {
+			assertMacroExpansion(
+				"""
+				@NostrContent
+				struct SomeContent: Sendable, Equatable, Hashable {
+					public var content: EncodedBool
+				}
+				""",
+				expandedSource: """
+				struct SomeContent: Sendable, Equatable, Hashable {
+					public var content: EncodedBool
+				
+				    public init(content: EncodedBool) {
+				        self.content = content
+				    }
+				
+				    public init(contentNative: Bool) {
+				        self.content = EncodedBool(contentNative)
+				    }
+				}
+
+				extension SomeContent: RAW_convertible {
+					public init?(RAW_decode inputPtr: consuming UnsafeRawPointer, count: RAW.size_t) {
+					    var inputPtr = inputPtr
+					    var dataCount = count
+					    guard dataCount >= MemoryLayout<EncodedBool>.size else {
+					        return nil
+					    }
+					    let content0 = EncodedBool(RAW_staticbuff_seeking: &inputPtr)
+					    dataCount -= MemoryLayout<EncodedBool>.size
+					    self.content = content0
+					    guard dataCount == 0 else {
+					        return nil
+					    }
+					}
+					public func RAW_encode(count: inout RAW.size_t) {
+					    content.RAW_encode(count: &count)
+					}
+					public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
+					    var dest = dest
+					    dest = content.RAW_encode(dest: dest)
+					    return dest
+					}
+				}
+				""",
+				macroSpecs: testMacros
+			) { failure in
+				Issue.record(
+					"\(failure.message)",
+					sourceLocation: .init(
+						fileID: failure.location.fileID,
+						filePath: failure.location.filePath,
+						line: failure.location.line,
+						column: failure.location.column
+					)
+				)
+			}
+		}
+		
 		@Test func encodeDecodeBasicContent() throws {
 			var content = BasicContent(variableA: EncodedBool(true), variableB: EncodedString("Hello World"))
 			var contentLen: Int = 0; content.RAW_encode(count: &contentLen)

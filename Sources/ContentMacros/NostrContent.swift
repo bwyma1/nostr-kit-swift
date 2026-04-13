@@ -18,17 +18,28 @@ enum NostrContentError: CustomStringConvertible, Error {
 	}
 }
 
-fileprivate let nostrContentTypes = ["EncodedBool", "EncodedUInt16", "EncodedUInt32", "EncodedUInt64", "EncodedUInt128", "EncodedInt16", "EncodedInt32", "EncodedUInt64", "EncodedInt128", "EncodedFloat", "EncodedString"]
+fileprivate let nostrContentTypes = ["EncodedBool", "EncodedUInt16", "EncodedUInt32", "EncodedUInt64", "EncodedUInt128", "EncodedInt16", "EncodedInt32", "EncodedUInt64", "EncodedInt128", "EncodedFloat", "EncodedString", "EncodedDate", "EncodedData"]
 
 fileprivate func rawDecodeIdentifierSyntax(identifier:String, type: String, layer: Int) -> String {
 	if type == "EncodedString" {
+		return
+		   """
+		   guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
+		   let \(identifier)Length = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+		   dataCount -= MemoryLayout<Bytes4>.size
+		   guard dataCount >= \(identifier)Length else { return nil }
+		   let \(identifier)\(layer) = \(type)(RAW_decode: inputPtr, count: \(identifier)Length)
+		   inputPtr = inputPtr.advanced(by: \(identifier)Length)
+		   dataCount -= \(identifier)Length\n
+		   """
+	} else if type == "EncodedData" {
 		return
 			"""
 			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
 			let \(identifier)Length = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
 			guard dataCount >= \(identifier)Length else { return nil }
-			let \(identifier)\(layer) = \(type)(RAW_decode: inputPtr, count: \(identifier)Length)
+			guard let \(identifier)\(layer) = \(type)(RAW_decode: inputPtr, count: \(identifier)Length) else { return nil }
 			inputPtr = inputPtr.advanced(by: \(identifier)Length)
 			dataCount -= \(identifier)Length\n
 			"""
@@ -54,39 +65,39 @@ fileprivate func rawDecodeIdentifierSyntax(identifier:String, type: String, laye
 }
 
 fileprivate func rawEncodeCountIdentifierSyntax(identifier:String, type: String, layer: Int) -> String {
-	if type == "EncodedString" {
+	if type == "EncodedString" || type == "EncodedData" {
 		return
 			"""
 			count += MemoryLayout<Bytes4>.size
-			\(identifier).RAW_encode(count: &count)
+			\(identifier).RAW_encode(count: &count)\n
 			"""
 	} else if nostrContentTypes.contains(type) {
 		return
 			"""
-			\(identifier).RAW_encode(count: &count)
+			\(identifier).RAW_encode(count: &count)\n
 			"""
 	} else {
 		return
 			"""
 			count += MemoryLayout<Bytes4>.size
-			\(identifier).RAW_encode(count: &count)
+			\(identifier).RAW_encode(count: &count)\n
 			"""
 	}
 }
 
 fileprivate func rawEncodeIdentifierSyntax(identifier:String, type: String, layer: Int) -> String {
-	if type == "EncodedString" {
+	if type == "EncodedString" || type == "EncodedData" {
 		return
 			"""
 			var \(identifier)Length = 0; \(identifier).RAW_encode(count: &\(identifier)Length)
 			let \(identifier)LengthBytes = Bytes4(RAW_native: UInt32(\(identifier)Length))
 			dest = \(identifier)LengthBytes.RAW_encode(dest: dest)
-			dest = \(identifier).RAW_encode(dest: dest)
+			dest = \(identifier).RAW_encode(dest: dest)\n
 			"""
 	} else if nostrContentTypes.contains(type) {
 		return
 			"""
-			dest = \(identifier).RAW_encode(dest: dest)
+			dest = \(identifier).RAW_encode(dest: dest)\n
 			"""
 	} else {
 		return
@@ -94,7 +105,7 @@ fileprivate func rawEncodeIdentifierSyntax(identifier:String, type: String, laye
 			var \(identifier)Length = 0; \(identifier).RAW_encode(count: &\(identifier)Length)
 			let \(identifier)LengthBytes = Bytes4(RAW_native: UInt32(\(identifier)Length))
 			dest = \(identifier)LengthBytes.RAW_encode(dest: dest)
-			dest = \(identifier).RAW_encode(dest: dest)
+			dest = \(identifier).RAW_encode(dest: dest)\n
 			"""
 	}
 }
@@ -242,7 +253,8 @@ fileprivate func resolveEncodeTypeAnnotation(type: TypeSyntax, identifier: Strin
 	return result
 }
 
-
+/// The macro adds the conformance and conformance functions
+/// for `RAW_convertible` as an extension of the struct.
 public struct NostrContent: ExtensionMacro {
 	public static func expansion(
 		of node: SwiftSyntax.AttributeSyntax,
@@ -323,6 +335,9 @@ public struct NostrContent: ExtensionMacro {
 	}
 }
 
+/// Adds two initializers.
+/// One of them uses the exact object types of the members.
+/// The other uses Swift native objects for any of the provided Encoded(type) content structs.
 extension NostrContent: MemberMacro {
 	public static func expansion(
 		of node: AttributeSyntax,
@@ -334,8 +349,6 @@ extension NostrContent: MemberMacro {
 		guard let structDecl = declaration.as(StructDeclSyntax.self) else {
 			throw NostrContentError.onlyApplicableToStruct
 		}
-		
-//		let x = structDecl.
 		
 		let members = structDecl.memberBlock.members
 		
@@ -393,8 +406,10 @@ extension NostrContent: MemberMacro {
 					foundationInitializerDecl += "\(parameterName):\(typeAnnotation.type.description.replacingOccurrences(of: "Encoded", with: "")),"
 					
 					let typeValue: String
-					if trimmedType == "EncodedString" || trimmedType == "EncodedBool" {
+					if trimmedType == "EncodedString" || trimmedType == "EncodedBool" || trimmedType == "EncodedData" {
 						typeValue = "(\(parameterName))"
+					} else if trimmedType == "EncodedDate" {
+						typeValue = "(date: \(parameterName))"
 					} else {
 						typeValue = "(RAW_native: \(parameterName))"
 					}
