@@ -7,6 +7,15 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacroExpansion
 import SwiftSyntaxMacrosGenericTestSupport
 
+@NostrTag(name: "d")
+struct DTag: Sendable, Hashable, Equatable, NOSTR_tag {
+	var indexField = NOSTR_tag_name(string: "d")
+	var value: NOSTR_id
+	init(value: NOSTR_id) throws {
+		self.value = value
+	}
+}
+
 @NostrContent
 struct BasicContent: Sendable, Equatable, Hashable {
 	public var variableA: EncodedBool
@@ -123,6 +132,17 @@ extension NostrTests {
 			defer { bufferA.deallocate() }
 			_ = content.RAW_encode(dest:bufferA.baseAddress!)
 			let decodedContent = ComplexContent(RAW_decode: bufferA.baseAddress!, count: contentLen)!
+			#expect(content == decodedContent)
+		}
+		
+		@Test func encodeDecodeTag() throws {
+			let nostrId = try generateSecureRandomBytes(as: NOSTR_id.self)
+			let content = try DTag(value: nostrId)
+			var contentLen: Int = 0; content.RAW_encode(count: &contentLen)
+			let bufferA = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLen)
+			defer { bufferA.deallocate() }
+			_ = content.RAW_encode(dest:bufferA.baseAddress!)
+			let decodedContent = DTag(RAW_decode: bufferA.baseAddress!, count: contentLen)!
 			#expect(content == decodedContent)
 		}
 	}

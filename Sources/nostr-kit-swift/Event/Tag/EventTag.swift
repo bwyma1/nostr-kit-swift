@@ -6,92 +6,56 @@ import Darwin
 import RAW
 import RAW_dh25519
 
-public struct NOSTR_tag_values_wrapper: Hashable, Sendable {
-	public var array: [any NOSTR_tag_value]
+/// Generic tag needed for decoding tags.
+public struct EventTag: Sendable, Hashable, NOSTR_tag {
 	
-	public init(array: [any NOSTR_tag_value]) {
-		self.array = array
+	public typealias tagValueType = NOSTR_tag_generic_value
+	
+	public var indexField: NOSTR_tag_name
+	
+	public var value: tagValueType
+	
+	public init(value: tagValueType) {
+		self.indexField = NOSTR_tag_name(string: "")
+		self.value = value
 	}
-
-	public static func ==(lhs: NOSTR_tag_values_wrapper, rhs: NOSTR_tag_values_wrapper) -> Bool {
-		guard lhs.array.count == rhs.array.count else { return false }
-		for (a, b) in zip(lhs.array, rhs.array) {
-			if a.hashValue != b.hashValue { return false } // or use `AnyHashable(a) == AnyHashable(b)`
-		}
-		return true
-	}
-
-	public func hash(into hasher: inout Hasher) {
-		for item in array {
-			hasher.combine(AnyHashable(item))
-		}
+	
+	public init(indexField:NOSTR_tag_name, value: tagValueType) {
+		self.indexField = indexField
+		self.value = value
 	}
 }
 
-public struct EventTag: NOSTR_tag, Hashable, RAW_accessible {
-	
-	public var NOSTR_tag_index_field: NOSTR_tag_name
-	
-	// Use 2 bytes for the length of each tag value
-	public var NOSTR_tag_values: NOSTR_tag_values_wrapper
-	
-	public init(NOSTR_tag_index_field: NOSTR_tag_name, NOSTR_tag_values: [any NOSTR_tag_value]) {
-		self.NOSTR_tag_index_field = NOSTR_tag_index_field
-		self.NOSTR_tag_values = NOSTR_tag_values_wrapper(array: NOSTR_tag_values)
-	}
-	
+extension EventTag: RAW_convertible {
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
-		guard count >= MemoryLayout<NOSTR_tag_name>.size else { return nil }
-
-		let tagName = NOSTR_tag_name(RAW_staticbuff_seeking: &inputPtr)
-		let tagValueCount = Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native()
-		var dataCount = count - MemoryLayout<NOSTR_tag_name>.size - MemoryLayout<Bytes1>.size
+		var dataCount = count
+		guard dataCount >= MemoryLayout<NOSTR_tag_name>.size else { return nil }
 		
-		var values: [any NOSTR_tag_value] = []
-		for _ in 0..<Int(tagValueCount) {
-			// Read length of next tag value
-			guard dataCount >= MemoryLayout<Bytes2>.size else { return nil }
-			dataCount -= MemoryLayout<Bytes2>.size
-			let length = Int(Bytes2(RAW_staticbuff_seeking: &inputPtr).RAW_native())
-			// Read the tag value
-			guard dataCount >= length else { return nil }
-			dataCount -= length
-			let value = NOSTR_tag_generic_value(RAW_decode: inputPtr, count: length)
-			inputPtr = inputPtr.advanced(by: length)
-			values.append(value)
-		}
+		self.indexField = NOSTR_tag_name(RAW_staticbuff_seeking: &inputPtr)
+		dataCount -= MemoryLayout<NOSTR_tag_name>.size
+		
+		guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
+		dataCount -= MemoryLayout<Bytes4>.size
+		let length = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+		guard dataCount >= length else { return nil }
+		dataCount -= length
+		self.value = NOSTR_tag_generic_value(RAW_decode: inputPtr, count: length)
 		guard dataCount == 0 else { return nil }
-		NOSTR_tag_index_field = tagName
-		NOSTR_tag_values = NOSTR_tag_values_wrapper(array: values)
 	}
 	
 	public func RAW_encode(count: inout RAW.size_t) {
-		// Add 1 for the number of tag values
-		count += MemoryLayout<NOSTR_tag_name>.size + MemoryLayout<Bytes1>.size
-		for tagValue in NOSTR_tag_values.array {
-			// Add 2 for the length of the tag value
-			count += MemoryLayout<Bytes2>.size
-			tagValue.RAW_encode(count: &count)
-		}
+		count += MemoryLayout<NOSTR_tag_name>.size + MemoryLayout<Bytes4>.size
+		value.RAW_encode(count: &count)
 	}
 	
 	public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
-		var dest = NOSTR_tag_index_field.RAW_encode(dest: dest)
-		// Encode the number of tag values
-		let tagValueCount = Bytes1(RAW_native: UInt8(NOSTR_tag_values.array.count))
-		dest = tagValueCount.RAW_encode(dest: dest)
+		var dest = indexField.RAW_encode(dest: dest)
 		
-		for tagValue in NOSTR_tag_values.array {
-			// Encode the length of the tag value
-			var tagValueLength = 0; tagValue.RAW_encode(count: &tagValueLength)
-			let tagValueLengthBytes = Bytes2(RAW_native: UInt16(tagValueLength))
-			dest = tagValueLengthBytes.RAW_encode(dest: dest)
-			
-			// Encode the tag value itself
-			dest = tagValue.RAW_encode(dest: dest)
-		}
+		var tagValueLength = 0; value.RAW_encode(count: &tagValueLength)
+		let tagValueLengthBytes = Bytes4(RAW_native: UInt32(tagValueLength))
+		dest = tagValueLengthBytes.RAW_encode(dest: dest)
+		dest = value.RAW_encode(dest: dest)
+		
 		return dest
 	}
 }
-
-

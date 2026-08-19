@@ -27,73 +27,41 @@ extension NOSTR_tag_value {
 ///		- as attached to relay filters (dynamic tags only)
 ///			- `{"#p", "dynamic tag name"...}`
 /// - note: tags cannot be empty, and must have a name of at least one character.
-public protocol NOSTR_tag: Sendable, Hashable, Comparable, RAW_convertible {
+public protocol NOSTR_tag: Sendable, Hashable, RAW_convertible, RAW_accessible {
+	associatedtype tagValueType: NOSTR_tag_value
 	
-	var NOSTR_tag_index_field:NOSTR_tag_name { get }
+	var indexField: NOSTR_tag_name { get }
 	
-	var NOSTR_tag_values:NOSTR_tag_values_wrapper { get set }
+	var value: tagValueType { get set }
 	
-	init(NOSTR_tag_index_field:NOSTR_tag_name, NOSTR_tag_values:[any NOSTR_tag_value]) throws
+	var name: String? { get }
 }
 
-/// Generic comparable implementation for any tag.
-/// Compares the `NOSTR_tag_index_field` and the array of `NOSTR_tag_value`.
-/// Override if needed.
 extension NOSTR_tag {
-	public static func compareValues(_ lhs: any NOSTR_tag_value,_ rhs: any NOSTR_tag_value) -> Bool {
-		return lhs.RAW_access { lhsPtr in
-			rhs.RAW_access { rhsPtr in
-				let minLen = min(lhsPtr.count, rhsPtr.count)
-				let cmp = memcmp(lhsPtr.baseAddress!, rhsPtr.baseAddress!, minLen)
-				if cmp != 0 { return cmp < 0 }
-				return lhsPtr.count < rhsPtr.count
-			}
+	public var name: String? {
+		indexField.string
+	}
+}
+
+extension NOSTR_tag {
+	/// Unwrap the tag as the specified struct conforming to `NOSTR_tag`.
+	/// The primary function to convert from the generalized `any NOSTR_tag` to
+	/// a more concrete tag form.
+	public func unwrap<T: NOSTR_tag>(as type: T.Type = T.self) -> T? {
+		self.RAW_access { ptr in
+			guard let unwrappedTag = T(RAW_accessed: ptr) else { return nil }
+			return unwrappedTag
 		}
 	}
-	
+}
+
+extension NOSTR_tag {
 	public func isEqual(to other: any NOSTR_tag) -> Bool {
-		guard let other = other as? Self else { return false }
-		return self == other
-	}
-
-	public static func == (lhs: Self, rhs: Self) -> Bool {
-		guard lhs.NOSTR_tag_index_field == rhs.NOSTR_tag_index_field else {
-			return false
-		}
-		guard lhs.NOSTR_tag_values.array.count == rhs.NOSTR_tag_values.array.count else {
-			return false
-		}
-		var rhsRemaining = rhs.NOSTR_tag_values
-
-		for lVal in lhs.NOSTR_tag_values.array {
-			var foundIndex: Int? = nil
-			for (i, rVal) in rhsRemaining.array.enumerated() {
-				if lVal.isEqual(to: rVal) {
-					foundIndex = i
-					break
-				}
+		return self.RAW_access { aPtr in
+			other.RAW_access { bPtr in
+				guard aPtr.count == bPtr.count else { return false }
+				return memcmp(aPtr.baseAddress!, bPtr.baseAddress!, aPtr.count) == 0
 			}
-			guard let idx = foundIndex else { return false }
-			rhsRemaining.array.remove(at: idx)
 		}
-
-		return true
-	}
-
-	public static func < (lhs: Self, rhs: Self) -> Bool {
-		if lhs.NOSTR_tag_index_field != rhs.NOSTR_tag_index_field {
-			return lhs.NOSTR_tag_index_field < rhs.NOSTR_tag_index_field
-		}
-		if lhs.NOSTR_tag_values.array.count != rhs.NOSTR_tag_values.array.count {
-			return lhs.NOSTR_tag_values.array.count < rhs.NOSTR_tag_values.array.count
-		}
-		let lhsSorted = lhs.NOSTR_tag_values.array.sorted(by: compareValues)
-		let rhsSorted = rhs.NOSTR_tag_values.array.sorted(by: compareValues)
-		
-		for (lVal, rVal) in zip(lhsSorted, rhsSorted) {
-			if compareValues(lVal, rVal) { return true }
-			if compareValues(rVal, lVal) { return false }
-		}
-		return false
 	}
 }

@@ -15,7 +15,7 @@ extension NostrTests {
 	)
 	struct NostrEventTests {
 		static let staticPrivateKey = MemoryGuarded<PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
-		let tags: [EventTag]
+		let tags: [any NOSTR_tag]
 		let date:NOSTR_date
 		let application:NOSTR_application
 		let kind:NOSTR_kind
@@ -25,9 +25,9 @@ extension NostrTests {
 		let event:UnsignedEvent<StringContent>
 		
 		init() throws {
-			let tag = EventTag(tagName: "e", tagValues: ["val1", "metadata1"])
-			let tag2 = EventTag(tagName: "e", tagValues: ["val2", "metadata2"])
-			let tag3 = EventTag(tagName: "p", tagValues: ["val1", "metadata1", "metadata2"])
+			let tag = GenericTag(name: "e", value: "val1")
+			let tag2 = GenericTag(name: "e", value: "val2")
+			let tag3 = GenericTag(name: "p", value: "val3")
 			tags = [tag, tag2, tag3]
 			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
 			date = NOSTR_date(date: Date())
@@ -44,7 +44,7 @@ extension NostrTests {
 			defer { buffer.deallocate() }
 			_ = tag.RAW_encode(dest:buffer.baseAddress!)
 			let decodedTag = EventTag(RAW_decode: buffer.baseAddress!, count: tagLen)!
-			#expect(tag.isEqual(to: decodedTag))
+			#expect(tag.indexField == decodedTag.indexField && tag.value.isEqual(to: decodedTag.value))
 		}
 		
 		@Test func encodeDecodeEvent() throws {
@@ -95,7 +95,11 @@ extension NostrTests {
 			#expect(filter.ids == decodedFilter.ids)
 			#expect(filter.authors == decodedFilter.authors)
 			#expect(filter.kinds == decodedFilter.kinds)
-			#expect(filter.tags as! [EventTag] == decodedFilter.tags as! [EventTag])
+			for i in (0..<filter.tags.count) {
+				let t1 = filter.tags[i]
+				let t2 = decodedFilter.tags[i]
+				#expect(t1.indexField == t2.indexField && t1.value.isEqual(to: t2.value))
+			}
 			#expect(filter.since == decodedFilter.since)
 			#expect(filter.until == decodedFilter.until)
 			
@@ -108,7 +112,11 @@ extension NostrTests {
 			#expect(nilFilter.ids == decodedNilFilter.ids)
 			#expect(decodedNilFilter.authors.isEmpty)
 			#expect(nilFilter.kinds == decodedNilFilter.kinds)
-			#expect(nilFilter.tags as! [EventTag] == decodedNilFilter.tags as! [EventTag])
+			for i in (0..<filter.tags.count) {
+				let t1 = filter.tags[i]
+				let t2 = decodedFilter.tags[i]
+				#expect(t1.indexField == t2.indexField && t1.value.isEqual(to: t2.value))
+			}
 			#expect(decodedNilFilter.since == nil)
 			#expect(nilFilter.until == decodedNilFilter.until)
 		}
@@ -128,14 +136,14 @@ extension NostrTests {
 		
 		@Test func applyPositiveFilters() throws {
 			let signedEvent = try event.sign(as: privateKey)
-			let tags:[EventTag] = [EventTag(tagName: "e", tagValues: ["val1","val4"]), EventTag(tagName: "e", tagValues: ["val2"])]
+			let tags:[any NOSTR_tag] = [GenericTag(name: "e", value: "val1"), GenericTag(name: "e", value: "val2")]
 			let filter = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags)
 			#expect(filter.apply(to: signedEvent))
 		}
 		
 		@Test func applyNegativeFilters() throws {
 			let signedEvent = try event.sign(as: privateKey)
-			var tags:[EventTag] = [EventTag(tagName: "e", tagValues: ["val2"]), EventTag(tagName: "e", tagValues: ["val4"])]
+			var tags:[any NOSTR_tag] = [GenericTag(name: "e", value: "val2"), GenericTag(name: "e", value: "val4")]
 			let filterTags = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags)
 			#expect(!filterTags.apply(to: signedEvent))
 			

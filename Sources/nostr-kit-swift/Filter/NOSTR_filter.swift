@@ -241,13 +241,11 @@ extension Filter {
 		var hasTags: Bool = true
 		tagLoop: for tag in self.tags {
 			for eventTag in event.unsignedEvent.tags.array {
-				guard tag.NOSTR_tag_index_field == eventTag.NOSTR_tag_index_field else {
+				guard tag.indexField == eventTag.indexField else {
 					continue
 				}
 				// At least one value from the event must appear in the filter values
-				if tag.NOSTR_tag_values.array.contains(where: { tagValue in
-					tagValue.isEqual(to: eventTag.NOSTR_tag_values.array[0])
-				}) {
+				if eventTag.value.isEqual(to: tag.value) {
 					continue tagLoop
 				}
 			}

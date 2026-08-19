@@ -445,10 +445,3 @@ extension NostrContent: MemberMacro {
 		]
 	}
 }
-
-@main
-struct ContentMacrosPlugin: CompilerPlugin {
-	let providingMacros: [Macro.Type] = [
-		NostrContent.self
-	]
-}
