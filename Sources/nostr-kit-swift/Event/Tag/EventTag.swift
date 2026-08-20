@@ -15,11 +15,6 @@ public struct EventTag: Sendable, Hashable, NOSTR_tag {
 	
 	public var value: tagValueType
 	
-	public init(value: tagValueType) {
-		self.indexField = NOSTR_tag_name(string: "")
-		self.value = value
-	}
-	
 	public init(indexField:NOSTR_tag_name, value: tagValueType) {
 		self.indexField = indexField
 		self.value = value

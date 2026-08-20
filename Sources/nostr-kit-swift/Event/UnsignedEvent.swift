@@ -28,7 +28,7 @@ public struct NOSTR_tags: Sendable, Hashable {
 
 public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 	
-	public var id: NOSTR_id
+	public let id: NOSTR_id
 	
 	public var publicKey: PublicKey
 	

@@ -25,9 +25,9 @@ extension NostrTests {
 		let event:UnsignedEvent<StringContent>
 		
 		init() throws {
-			let tag = GenericTag(name: "e", value: "val1")
-			let tag2 = GenericTag(name: "e", value: "val2")
-			let tag3 = GenericTag(name: "p", value: "val3")
+			let tag = GenericTag(name: "e", value: "val1")!
+			let tag2 = GenericTag(name: "e", value: "val2")!
+			let tag3 = GenericTag(name: "p", value: "val3")!
 			tags = [tag, tag2, tag3]
 			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
 			date = NOSTR_date(date: Date())
@@ -136,20 +136,141 @@ extension NostrTests {
 		
 		@Test func applyPositiveFilters() throws {
 			let signedEvent = try event.sign(as: privateKey)
-			let tags:[any NOSTR_tag] = [GenericTag(name: "e", value: "val1"), GenericTag(name: "e", value: "val2")]
+			let tags:[any NOSTR_tag] = [GenericTag(name: "e", value: "val1")!, GenericTag(name: "e", value: "val2")!]
 			let filter = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags)
 			#expect(filter.apply(to: signedEvent))
 		}
 		
 		@Test func applyNegativeFilters() throws {
 			let signedEvent = try event.sign(as: privateKey)
-			var tags:[any NOSTR_tag] = [GenericTag(name: "e", value: "val2"), GenericTag(name: "e", value: "val4")]
+			var tags:[any NOSTR_tag] = [GenericTag(name: "e", value: "val2")!, GenericTag(name: "e", value: "val4")!]
 			let filterTags = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags)
 			#expect(!filterTags.apply(to: signedEvent))
 			
 			tags = []
 			let filterKind = Filter(ids: [event.id], authors: [event.publicKey], kinds: [NOSTR_kind(RAW_native:2)], tags: tags)
 			#expect(!filterKind.apply(to: signedEvent))
+		}
+	}
+}
+
+extension NostrTests {
+	@Suite("Event Validation Tests",
+		   .serialized
+	)
+	struct NostrEventValidationTests {
+		static let staticPrivateKey = MemoryGuarded<PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
+		let tags: [any NOSTR_tag]
+		let date: NOSTR_date
+		let application: NOSTR_application
+		let kind: NOSTR_kind
+		let publicKey: PublicKey
+		let privateKey: MemoryGuarded<Ed25519.PrivateKey>
+		let content: StringContent
+		let event: UnsignedEvent<StringContent>
+
+		init() throws {
+			let tag = GenericTag(name: "e", value: "val1")!
+			tags = [tag]
+			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventValidationTests.staticPrivateKey)
+			date = NOSTR_date(date: Date())
+			application = NOSTR_application(RAW_native: 2)
+			kind = NOSTR_kind(RAW_native: 1)
+			content = StringContent(stringLiteral: "Some Nostr Content")
+			event = try UnsignedEvent(publicKey: publicKey, date: date, tags: [tag], application: application, kind: kind, content: content)
+		}
+
+		@Test func validEventIsValid() throws {
+			#expect(event.isValid())
+		}
+
+		@Test func isValidSignatureRejectsIdMismatch() throws {
+			let signedEvent = try event.sign(as: privateKey)
+			// A signature that is valid over the stored id must still be rejected if the
+			// stored id does not match the recomputed hash of the fields.
+			var wrongID = signedEvent.unsignedEvent.id
+			wrongID.RAW_access_mutating { ptr in
+				ptr.baseAddress![0] ^= 0xFF
+			}
+			let badEvent = UnsignedEvent(id: wrongID, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
+			let tampered = NOSTR_event_signed(unsignedEvent: badEvent, sig: signedEvent.sig)
+			#expect(!tampered.isValidSignature())
+		}
+
+		@Test func signRejectsEventWithWrongID() throws {
+			var wrongID = event.id
+			wrongID.RAW_access_mutating { ptr in
+				ptr.baseAddress![0] ^= 0xFF
+			}
+			let badEvent = UnsignedEvent(id: wrongID, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
+			#expect(throws: NOSTR_event_error.self) {
+				try badEvent.sign(as: privateKey)
+			}
+		}
+
+		@Test func signRejectsTagWithNilName() throws {
+			// Encode a valid tag, then corrupt its 8-byte indexField with bytes that
+			// are not valid UTF-8 so `tag.name` decodes to nil (violating the rule
+			// that every tag must have a name of at least one character).
+			let validTag = GenericTag(name: "e", value: "val1")!
+			var tagLen = 0; validTag.RAW_encode(count: &tagLen)
+			var tagBuf = [UInt8](repeating: 0, count: tagLen)
+			_ = validTag.RAW_encode(dest: &tagBuf)
+			for i in 0..<MemoryLayout<NOSTR_tag_name>.size {
+				tagBuf[i] = 0xFF
+			}
+			let badTag = EventTag(RAW_decode: tagBuf, count: tagBuf.count)!
+			#expect(badTag.name == nil)
+			let badEvent = try UnsignedEvent(publicKey: publicKey, date: date, tags: [badTag], application: application, kind: kind, content: content)
+			#expect(!badEvent.isValid())
+			#expect(throws: NOSTR_event_error.self) {
+				try badEvent.sign(as: privateKey)
+			}
+		}
+	}
+}
+
+extension NostrTests {
+	@Suite("Tag Name Tests",
+		   .serialized
+	)
+	struct NostrTagNameTests {
+		@Test func initRejectsNameLongerThanEightBytes() {
+			#expect(NOSTR_tag_name(string: "e") != nil)
+			#expect(NOSTR_tag_name(string: "12345678") != nil)  // exactly 8 bytes
+			#expect(NOSTR_tag_name(string: "123456789") == nil)  // 9 bytes
+			// Multi-byte characters count in UTF-8 bytes, not characters.
+			#expect(NOSTR_tag_name(string: "éééé") != nil)  // 4 × 2 = 8 bytes
+			#expect(NOSTR_tag_name(string: "ééééé") == nil)  // 5 × 2 = 10 bytes
+		}
+
+		@Test func shortNameRoundTripsWithoutGarbageTail() throws {
+			let name = NOSTR_tag_name(string: "e")!
+			// The 8-byte field is NUL-padded, so `.string` decodes cleanly to "e"
+			// (no trailing garbage or zero bytes).
+			#expect(name.string == "e")
+
+			var len = 0; name.RAW_encode(count: &len)
+			#expect(len == MemoryLayout<NOSTR_tag_name>.size)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: len)
+			defer { buffer.deallocate() }
+			_ = name.RAW_encode(dest: buffer.baseAddress!)
+			var readPtr = UnsafeRawPointer(buffer.baseAddress!)
+			let decoded = NOSTR_tag_name(RAW_staticbuff_seeking: &readPtr)
+			#expect(decoded == name)
+			#expect(decoded.string == "e")
+		}
+
+		@Test func genericTagRejectsOverlongName() {
+			#expect(GenericTag(name: "expiration", value: "2026") == nil)
+			#expect(GenericTag(name: "e", value: "val1") != nil)
+		}
+
+		@Test func emptyNameDecodesToEmptyString() {
+			// An all-NUL 8-byte field represents an empty name.
+			let zeroes = [UInt8](repeating: 0, count: MemoryLayout<NOSTR_tag_name>.size)
+			let name = zeroes.withUnsafeBytes { NOSTR_tag_name(RAW_staticbuff: $0.baseAddress!) }
+			#expect(name.string == "")
 		}
 	}
 }
