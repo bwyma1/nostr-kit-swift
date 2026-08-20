@@ -57,62 +57,72 @@ public struct Filter:Sendable, RAW_convertible {
 	}
 	
 	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+		var dataCount = count
+
 		// ids
-		guard count >= MemoryLayout<Bytes1>.size else { return nil }
+		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
 		let idCount = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
-		guard count >= MemoryLayout<Bytes1>.size + MemoryLayout<NOSTR_id>.size * idCount else { return nil }
+		dataCount -= MemoryLayout<Bytes1>.size
+		guard dataCount >= MemoryLayout<NOSTR_id>.size * idCount else { return nil }
 		ids = []
 		for _ in 0..<idCount{
 			let id = NOSTR_id(RAW_staticbuff_seeking: &inputPtr)
 			ids.append(id)
 		}
-		var dataCount = count - MemoryLayout<Bytes1>.size - MemoryLayout<NOSTR_id>.size * idCount
-		
+		dataCount -= MemoryLayout<NOSTR_id>.size * idCount
+
 		// authors
 		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
 		let authorCount = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
-		guard dataCount >= MemoryLayout<Bytes1>.size + MemoryLayout<PublicKey>.size * authorCount else { return nil }
+		dataCount -= MemoryLayout<Bytes1>.size
+		guard dataCount >= MemoryLayout<PublicKey>.size * authorCount else { return nil }
 		authors = []
 		for _ in 0..<authorCount{
 			let author = PublicKey(RAW_staticbuff_seeking: &inputPtr)
 			authors.append(author)
 		}
-		dataCount = count - MemoryLayout<Bytes1>.size - MemoryLayout<PublicKey>.size * authorCount
-		
+		dataCount -= MemoryLayout<PublicKey>.size * authorCount
+
 		// applications
 		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
 		let applicationCount = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
-		guard dataCount >= MemoryLayout<Bytes1>.size + MemoryLayout<NOSTR_application>.size * applicationCount else { return nil }
+		dataCount -= MemoryLayout<Bytes1>.size
+		guard dataCount >= MemoryLayout<NOSTR_application>.size * applicationCount else { return nil }
 		applications = []
 		for _ in 0..<applicationCount{
 			let application = NOSTR_application(RAW_staticbuff_seeking: &inputPtr)
 			applications.append(application)
 		}
-		dataCount = count - MemoryLayout<Bytes1>.size - MemoryLayout<NOSTR_application>.size * applicationCount
-		
+		dataCount -= MemoryLayout<NOSTR_application>.size * applicationCount
+
 		// kinds
 		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
 		let kindCount = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
-		guard dataCount >= MemoryLayout<Bytes1>.size + MemoryLayout<NOSTR_kind>.size * kindCount else { return nil }
+		dataCount -= MemoryLayout<Bytes1>.size
+		guard dataCount >= MemoryLayout<NOSTR_kind>.size * kindCount else { return nil }
 		kinds = []
 		for _ in 0..<kindCount{
 			let kind = NOSTR_kind(RAW_staticbuff_seeking: &inputPtr)
 			kinds.append(kind)
 		}
-		dataCount = count - MemoryLayout<Bytes1>.size - MemoryLayout<NOSTR_kind>.size * kindCount
-		
+		dataCount -= MemoryLayout<NOSTR_kind>.size * kindCount
+
 		// tags
-		let tagCount = Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native()
+		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
+		let tagCount = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+		dataCount -= MemoryLayout<Bytes1>.size
 		tags = []
-		for _ in 0..<Int(tagCount) {
+		for _ in 0..<tagCount {
 			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
 			let tagLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
+			dataCount -= MemoryLayout<Bytes4>.size
+			guard dataCount >= tagLength else { return nil }
 			guard let tag = EventTag(RAW_decode: inputPtr, count: tagLength) else { return nil }
 			inputPtr = inputPtr.advanced(by: tagLength)
 			dataCount -= tagLength
 			tags.append(tag)
 		}
-		
+
 		// since / until
 		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
 		let sinceExists = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
@@ -128,8 +138,9 @@ public struct Filter:Sendable, RAW_convertible {
 		if untilExists == 1 {
 			guard dataCount >= MemoryLayout<NOSTR_date>.size else { return nil }
 			until = NOSTR_date(RAW_staticbuff_seeking: &inputPtr)
+			dataCount -= MemoryLayout<NOSTR_date>.size
 		}
-		
+
 		// limit
 		guard dataCount >= MemoryLayout<Bytes1>.size else { return nil }
 		let limitExists = Int(Bytes1(RAW_staticbuff_seeking: &inputPtr).RAW_native())
@@ -137,7 +148,10 @@ public struct Filter:Sendable, RAW_convertible {
 		if limitExists == 1 {
 			guard dataCount >= MemoryLayout<NOSTR_filter_limit>.size else { return nil }
 			limit = NOSTR_filter_limit(RAW_staticbuff_seeking: &inputPtr)
+			dataCount -= MemoryLayout<NOSTR_filter_limit>.size
 		}
+
+		guard dataCount == 0 else { return nil }
 	}
 	
 	public func RAW_encode(count: inout RAW.size_t) {

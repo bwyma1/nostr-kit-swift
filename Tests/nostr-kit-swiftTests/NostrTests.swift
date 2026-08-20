@@ -102,7 +102,7 @@ extension NostrTests {
 			}
 			#expect(filter.since == decodedFilter.since)
 			#expect(filter.until == decodedFilter.until)
-			
+		
 			let nilFilter = Filter(ids: [event.id], authors: [], kinds: [event.kind], tags: tags, since: nil, until: until)
 			filterLen = 0; nilFilter.RAW_encode(count: &filterLen)
 			let nilBuffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: filterLen)
@@ -119,6 +119,33 @@ extension NostrTests {
 			}
 			#expect(decodedNilFilter.since == nil)
 			#expect(nilFilter.until == decodedNilFilter.until)
+		}
+
+		@Test func truncatedFilterDecodeRejectsOutOfBounds() throws {
+			// Regression test for H1: the filter decoder must not read past the buffer.
+			// A valid filter is encoded, then truncated at every byte boundary. The decoder
+			// must either decode successfully (for complete prefixes) or return nil —
+			// never crash or over-read.
+			let filter = Filter(ids: [event.id], authors: [event.publicKey], applications: [application], kinds: [event.kind], tags: tags, since: NOSTR_date(0), until: NOSTR_date(1000))
+			var filterLen = 0; filter.RAW_encode(count: &filterLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: filterLen)
+			defer { buffer.deallocate() }
+			_ = filter.RAW_encode(dest: buffer.baseAddress!)
+
+			for cut in 0..<filterLen {
+				// Simulate a truncated wire message: only the first `cut` bytes arrive.
+				let truncated = Filter(RAW_decode: buffer.baseAddress!, count: cut)
+				// Accepting a short-but-valid prefix is fine; it must simply not crash.
+				_ = truncated
+			}
+
+			// A filter that claims more tags/ids than are present must be rejected.
+			var overlong = [UInt8](buffer)
+			// The ids count byte (first byte) claims 1 id is present. Rewrite it to claim
+			// 255 ids — far more than the buffer can hold. The decoder must reject it.
+			overlong[0] = 255
+			let rejected = Filter(RAW_decode: overlong, count: overlong.count)
+			#expect(rejected == nil)
 		}
 		
 		@Test func encodeDecodeEVENTMessage() throws {
@@ -225,6 +252,38 @@ extension NostrTests {
 			#expect(!badEvent.isValid())
 			#expect(throws: NOSTR_event_error.self) {
 				try badEvent.sign(as: privateKey)
+			}
+		}
+
+		@Test func throwingRAWaccessBodyDoesNotCrash() throws {
+			// Regression test for H2: a `RAW_access` body that throws must propagate the
+			// error (re-thrown as its typed `E`), NOT crash the process via `try!`.
+			let tag = GenericTag(name: "e", value: "val1")!
+			do {
+				try tag.RAW_access { (_: UnsafeBufferPointer<UInt8>) throws -> Void in
+					throw NOSTR_event_error.eventValidationFailed
+				}
+				Issue.record("expected a thrown error from RAW_access body")
+			} catch NOSTR_event_error.eventValidationFailed {
+				// Expected: the error propagated rather than crashing.
+			} catch {
+				Issue.record("unexpected error type: \(error)")
+			}
+		}
+
+		@Test func throwingRAWaccessMutatingBodyDoesNotCrash() throws {
+			// Same for `RAW_access_mutating`: a throwing body must propagate the typed
+			// error rather than crashing via `try!`.
+			var tag = GenericTag(name: "e", value: "val1")!
+			do {
+				try tag.RAW_access_mutating { (_: UnsafeMutableBufferPointer<UInt8>) throws -> Void in
+					throw NOSTR_event_error.eventValidationFailed
+				}
+				Issue.record("expected a thrown error from RAW_access_mutating body")
+			} catch NOSTR_event_error.eventValidationFailed {
+				// Expected.
+			} catch {
+				Issue.record("unexpected error type: \(error)")
 			}
 		}
 	}
