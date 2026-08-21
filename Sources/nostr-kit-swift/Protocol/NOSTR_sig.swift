@@ -1,6 +1,8 @@
 import RAW
 
+/// The 64-byte Ed25519 signature attached to a signed event.
+///
+/// The signature is computed over the event's `id` and is used to verify that the
+/// event's data has not been altered.
 @RAW_staticbuff(bytes: 64)
-/// The signature that created in a `NOSTR_event_signed`
-/// This signature is used to determine if the data has been altered.
-public struct NOSTR_sig: Sendable, Hashable, RAW_convertible, RAW_accessible { }
+public struct NOSTR_sig: Sendable, Hashable, RAW_convertible, RAW_accessible {}

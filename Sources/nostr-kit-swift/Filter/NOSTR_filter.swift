@@ -1,39 +1,51 @@
 import RAW
 import RAW_dh25519
 
+/// A limit value for a filter query.
 @RAW_staticbuff(bytes: 8)
 @RAW_staticbuff_fixedwidthinteger_type<UInt64>(bigEndian:true)
 public struct NOSTR_filter_limit:Sendable { }
 
-/// List Attributes (ids, authors, kinds, and tag filters like #e):
-/// - An event matches if its value is contained in the list
-/// - For tags, the event must have at least one tag value matching one value in the filter list
-/// Time Range (since and until):
-/// - Events match if: `since <= created_at <= until`
-/// Multiple Conditions:
-/// - Within a single filter, all conditions must be satisfied (logical AND)
-/// - If multiple filters are provided, an event matches if it satisfies any filter (logical OR)
-/// Special Considerations:
-/// - Limits only apply to the initial query and is ignored for ongoing subscriptions
-/// - If a limit is reached, then the filter should return the first n events, typically in reverse chronological order
+/// A filter that matches events against a set of conditions.
+///
+/// List attributes (ids, authors, kinds, and tag filters like `#e`) match when the
+/// event's value is contained in the list. For tags, the event must have at least
+/// one tag value matching one value in the filter list.
+///
+/// Time range (since and until): events match when `since <= created_at <= until`.
+///
+/// Multiple conditions within a single filter must all be satisfied (logical AND).
+/// If multiple filters are provided, an event matches when it satisfies any filter
+/// (logical OR).
+///
+/// Limits only apply to the initial query and are ignored for ongoing subscriptions.
 public struct Filter:Sendable, RAW_convertible {
 	
+	/// The event ids to match.
 	public var ids: [NOSTR_id]
 	
+	/// The author public keys to match.
 	public var authors: [PublicKey]
 	
+	/// The applications to match.
 	public var applications: [NOSTR_application]
 	
+	/// The kinds to match.
 	public var kinds: [NOSTR_kind]
 	
+	/// The tag filters to match.
 	public var tags: [any NOSTR_tag]
 	
+	/// Only match events created at or after this time.
 	public var since: NOSTR_date?
 	
+	/// Only match events created at or before this time.
 	public var until: NOSTR_date?
 	
+	/// The maximum number of events to return for the initial query.
 	public var limit: NOSTR_filter_limit?
 	
+	/// Creates a filter from typed values.
 	public init(ids: [NOSTR_id] = [], authors: [PublicKey] = [], applications: [NOSTR_application] = [], kinds: [NOSTR_kind] = [], tags: [any NOSTR_tag] = [], since: NOSTR_date? = nil, until: NOSTR_date? = nil, limit: NOSTR_filter_limit? = nil) {
 		self.ids = ids
 		self.authors = authors
@@ -45,6 +57,7 @@ public struct Filter:Sendable, RAW_convertible {
 		self.limit = limit
 	}
 	
+	/// Creates a filter from native `UInt16`/`UInt32` values for applications and kinds.
 	public init(ids: [NOSTR_id] = [], authors: [PublicKey] = [], applications: [UInt16], kinds: [UInt32], tags: [any NOSTR_tag] = [], since: NOSTR_date? = nil, until: NOSTR_date? = nil, limit: NOSTR_filter_limit? = nil) {
 		self.ids = ids
 		self.authors = authors
@@ -248,8 +261,8 @@ public struct Filter:Sendable, RAW_convertible {
 
 
 extension Filter {
-	/// Applys this filter to a signed event.
-	/// Returns True if the signed event contains the elements of the Filter, else returns false.
+	/// Applies this filter to a signed event.
+	/// Returns `true` if the signed event matches the filter, otherwise `false`.
 	public func apply<UnsignedEvent:NOSTR_event_unsigned>(to event: NOSTR_event_signed<UnsignedEvent>) -> Bool {
 		// make sure each filter tag is in the event tags
 		var hasTags: Bool = true

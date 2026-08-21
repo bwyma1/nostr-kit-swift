@@ -4,34 +4,49 @@ import RAW_dh25519
 import RAW_sha256
 import RAW_ed25519
 
+/// The content of a `NOSTR_event`.
+///
+/// Content is any raw, encodable value that carries the event's payload.
 public protocol NOSTR_event_content: Sendable, Hashable, RAW_convertible { }
 
+/// An event that has not yet been signed.
+///
+/// An unsigned event computes and stores its `id` (the SHA-256 hash of its
+/// serialized fields) and can be signed with an author's private key to produce a
+/// `NOSTR_event_signed`.
 public protocol NOSTR_event_unsigned: Sendable, Hashable, Identifiable, RAW_convertible {
 	
+	/// The event's unique identifier (SHA-256 of its serialized fields).
 	var id:NOSTR_id { get }
 	
+	/// The public key of the event's author.
 	var publicKey:PublicKey { get set }
 	
+	/// The time at which the event was created.
 	var date:NOSTR_date { get set }
 	
+	/// The tags attached to the event.
 	var tags:NOSTR_tags { get set }
 	
+	/// The application to which the event belongs.
 	var application:NOSTR_application { get set }
 	
+	/// The kind of the event.
 	var kind:NOSTR_kind { get set }
 	
 	associatedtype ContentType:NOSTR_event_content
+	/// The event's content.
 	var content:ContentType { get set }
 	
 	init(id:NOSTR_id, publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], application:NOSTR_application, kind:NOSTR_kind, content:ContentType)
 }
 
-/// Compute the event `id` as the sha256 over the serialized fields, in the
+/// Computes the event `id` as the SHA-256 hash over the serialized fields, in the
 /// canonical order: publicKey, date, each tag's bytes (no length prefix),
 /// application, kind, content.
 ///
-/// This is the single source of truth for id computation so that signing,
-/// id recomputation and validation all produce byte-for-byte identical output.
+/// This is the single source of truth for id computation so that signing, id
+/// recomputation and validation all produce byte-for-byte identical output.
 func computeEventID<Content: NOSTR_event_content>(
 	publicKey: PublicKey,
 	date: NOSTR_date,
@@ -69,17 +84,27 @@ func computeEventID<Content: NOSTR_event_content>(
 }
 
 extension NOSTR_event_unsigned {
+	/// Constructs an unsigned event, computing its `id` from the provided fields.
+	///
+	/// The `id` is computed as the SHA-256 hash of the serialized fields in the
+	/// canonical order. Prefer this initializer when you want the `id` to be derived
+	/// from the fields.
 	public init(publicKey:PublicKey, date:NOSTR_date, tags:[any NOSTR_tag], application:NOSTR_application, kind:NOSTR_kind, content:ContentType) throws {
 		let id = try computeEventID(publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
 		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
 	}
 	
+	/// Constructs an unsigned event dated now, computing its `id` from the provided fields.
 	public init(publicKey:PublicKey, tags:[any NOSTR_tag], application:NOSTR_application, kind:NOSTR_kind, content:ContentType) throws {
 		let date = NOSTR_date(date: Date())
 		let id = try computeEventID(publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
 		self = Self(id: id, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
 	}
 	
+	/// Constructs an unsigned event from raw native values, computing its `id`.
+	///
+	/// The `application` and `kind` are converted from their `UInt16`/`UInt32`
+	/// native forms.
 	public init(publicKey:PublicKey, date:NOSTR_date = NOSTR_date(date: Date()), tags:[any NOSTR_tag], application:UInt16, kind:UInt32, content:ContentType) throws {
 		let kind = NOSTR_kind(RAW_native: kind)
 		let application = NOSTR_application(RAW_native: application)
@@ -109,8 +134,9 @@ extension NOSTR_event_unsigned {
 	}
 }
 
-/// An error thrown when attempting to sign an event that fails validation.
+/// An error thrown when an event cannot be signed because it fails validation.
 public enum NOSTR_event_error: Error, Sendable {
+	/// The event failed validation (for example, its `id` does not match its fields).
 	case eventValidationFailed
 }
 
@@ -137,14 +163,17 @@ extension NOSTR_event_unsigned {
 }
 
 public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, Hashable, Identifiable, RAW_convertible, RAW_accessible {
+	/// The Ed25519 signature over the event's `id`.
 	public let sig:NOSTR_sig
 	// For identifiable protocol
 	public var id: NOSTR_sig {
 		sig
 	}
 	
+	/// The underlying unsigned event.
 	public let unsignedEvent:UnsignedEvent
 	
+	/// Creates a signed event from an unsigned event and its signature.
 	public init(unsignedEvent:UnsignedEvent, sig:NOSTR_sig) {
 		self.unsignedEvent = unsignedEvent
 		self.sig = sig

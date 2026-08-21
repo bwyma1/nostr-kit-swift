@@ -1,24 +1,31 @@
 import RAW
 
-/// Client --> Server
-/// - A message sent by the client to a server containing a `NOSTR_signed_event` to be saved to the database.
-/// - Subscription ID does not affect the message.
-/// Server --> Client
-/// - A message sent by the server to the client for requested events.
-/// - Subscription ID represents what subscription the event belongs to.
+/// A message carrying a `NOSTR_event_signed`.
+///
+/// Client to server:
+/// - A message sent by a client to a server containing a `NOSTR_event_signed` to be
+///   saved to the database. The subscription ID does not affect the message.
+///
+/// Server to client:
+/// - A message sent by the server to the client for requested events. The
+///   subscription ID represents which subscription the event belongs to.
 public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, RAW_convertible {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x101)
 	
+	/// The subscription identifier this event belongs to (server to client).
 	public let subscriptionID:NOSTR_subscription_ID
 	
+	/// The signed event being transmitted.
 	public let event:NOSTR_event_signed<UnsignedEvent>
 	
+	/// Creates an EVENT message from a subscription identifier string and a signed event.
 	public init(subscriptionID:String, event:NOSTR_event_signed<UnsignedEvent>) {
 		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
 		self.event = event
 	}
 	
+	/// Creates an EVENT message from a subscription identifier and a signed event.
 	public init(subscriptionID:NOSTR_subscription_ID, event:NOSTR_event_signed<UnsignedEvent>) {
 		self.subscriptionID = subscriptionID
 		self.event = event

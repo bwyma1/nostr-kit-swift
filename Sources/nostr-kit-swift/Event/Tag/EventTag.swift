@@ -6,15 +6,21 @@ import Darwin
 import RAW
 import RAW_dh25519
 
-/// Generic tag needed for decoding tags.
+/// The generic tag used when decoding an arbitrary tag from the wire.
+///
+/// Its value is a `NOSTR_tag_generic_value`, so any untyped tag can be represented
+/// and later unwrapped into a more concrete tag type.
 public struct EventTag: Sendable, Hashable, NOSTR_tag {
 	
 	public typealias tagValueType = NOSTR_tag_generic_value
 	
+	/// The tag's index field (its name).
 	public var indexField: NOSTR_tag_name
 	
+	/// The tag's value.
 	public var value: tagValueType
 	
+	/// Creates a generic tag from an index field and a value.
 	public init(indexField:NOSTR_tag_name, value: tagValueType) {
 		self.indexField = indexField
 		self.value = value

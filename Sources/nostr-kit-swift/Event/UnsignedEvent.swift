@@ -1,12 +1,19 @@
 import RAW
 import RAW_dh25519
 
+/// An event content type backed by a UTF-8 string.
 @RAW_convertible_string_type<UTF8>(backing:RAW_byte.self)
 public struct StringContent: NOSTR_event_content, Comparable, ExpressibleByStringLiteral { }
 
+/// An ordered collection of tags attached to an event.
+///
+/// Tags are compared byte-level: two tags that encode to identical bytes are
+/// considered equal regardless of their concrete Swift types.
 public struct NOSTR_tags: Sendable, Hashable {
+	/// The tags in the collection.
 	public var array: [any NOSTR_tag]
 	
+	/// Creates a tag collection from an array of tags.
 	public init(array: [any NOSTR_tag]) {
 		self.array = array
 	}
@@ -28,22 +35,34 @@ public struct NOSTR_tags: Sendable, Hashable {
 	}
 }
 
+/// A default unsigned event that follows the protocol.
 public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 	
+	/// The event's unique identifier (SHA-256 of its serialized fields).
+	///
+	/// This is immutable once the event is created, so it can never diverge from
+	/// the event's fields.
 	public let id: NOSTR_id
 	
+	/// The public key of the event's author.
 	public var publicKey: PublicKey
 	
+	/// The time at which the event was created.
 	public var date: NOSTR_date
 	
+	/// The tags attached to the event.
 	public var tags: NOSTR_tags
 	
+	/// The application to which the event belongs.
 	public var application: NOSTR_application
 	
+	/// The kind of the event.
 	public var kind: NOSTR_kind
 	
+	/// The event's content.
 	public var content: Content
 	
+	/// Creates an unsigned event from its individual components.
 	public init(id: NOSTR_id, publicKey: PublicKey, date: NOSTR_date, tags: [any NOSTR_tag], application: NOSTR_application, kind: NOSTR_kind, content: Content) {
 		self.id = id
 		self.publicKey = publicKey

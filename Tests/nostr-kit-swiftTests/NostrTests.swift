@@ -25,9 +25,9 @@ extension NostrTests {
 		let event:UnsignedEvent<StringContent>
 		
 		init() throws {
-			let tag = GenericTag(name: "e", value: "val1")!
-			let tag2 = GenericTag(name: "e", value: "val2")!
-			let tag3 = GenericTag(name: "p", value: "val3")!
+			let tag = StringTag(name: "e", value: "val1")!
+			let tag2 = StringTag(name: "e", value: "val2")!
+			let tag3 = StringTag(name: "p", value: "val3")!
 			tags = [tag, tag2, tag3]
 			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
 			date = NOSTR_date(date: Date())
@@ -163,14 +163,14 @@ extension NostrTests {
 		
 		@Test func applyPositiveFilters() throws {
 			let signedEvent = try event.sign(as: privateKey)
-			let tags:[any NOSTR_tag] = [GenericTag(name: "e", value: "val1")!, GenericTag(name: "e", value: "val2")!]
+			let tags:[any NOSTR_tag] = [StringTag(name: "e", value: "val1")!, StringTag(name: "e", value: "val2")!]
 			let filter = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags)
 			#expect(filter.apply(to: signedEvent))
 		}
 		
 		@Test func applyNegativeFilters() throws {
 			let signedEvent = try event.sign(as: privateKey)
-			var tags:[any NOSTR_tag] = [GenericTag(name: "e", value: "val2")!, GenericTag(name: "e", value: "val4")!]
+			var tags:[any NOSTR_tag] = [StringTag(name: "e", value: "val2")!, StringTag(name: "e", value: "val4")!]
 			let filterTags = Filter(ids: [event.id], authors: [event.publicKey], kinds: [event.kind], tags: tags)
 			#expect(!filterTags.apply(to: signedEvent))
 			
@@ -197,7 +197,7 @@ extension NostrTests {
 		let event: UnsignedEvent<StringContent>
 
 		init() throws {
-			let tag = GenericTag(name: "e", value: "val1")!
+			let tag = StringTag(name: "e", value: "val1")!
 			tags = [tag]
 			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventValidationTests.staticPrivateKey)
 			date = NOSTR_date(date: Date())
@@ -239,7 +239,7 @@ extension NostrTests {
 			// Encode a valid tag, then corrupt its 8-byte indexField with bytes that
 			// are not valid UTF-8 so `tag.name` decodes to nil (violating the rule
 			// that every tag must have a name of at least one character).
-			let validTag = GenericTag(name: "e", value: "val1")!
+			let validTag = StringTag(name: "e", value: "val1")!
 			var tagLen = 0; validTag.RAW_encode(count: &tagLen)
 			var tagBuf = [UInt8](repeating: 0, count: tagLen)
 			_ = validTag.RAW_encode(dest: &tagBuf)
@@ -258,7 +258,7 @@ extension NostrTests {
 		@Test func throwingRAWaccessBodyDoesNotCrash() throws {
 			// Regression test for H2: a `RAW_access` body that throws must propagate the
 			// error (re-thrown as its typed `E`), NOT crash the process via `try!`.
-			let tag = GenericTag(name: "e", value: "val1")!
+			let tag = StringTag(name: "e", value: "val1")!
 			do {
 				try tag.RAW_access { (_: UnsafeBufferPointer<UInt8>) throws -> Void in
 					throw NOSTR_event_error.eventValidationFailed
@@ -274,7 +274,7 @@ extension NostrTests {
 		@Test func throwingRAWaccessMutatingBodyDoesNotCrash() throws {
 			// Same for `RAW_access_mutating`: a throwing body must propagate the typed
 			// error rather than crashing via `try!`.
-			var tag = GenericTag(name: "e", value: "val1")!
+			var tag = StringTag(name: "e", value: "val1")!
 			do {
 				try tag.RAW_access_mutating { (_: UnsafeMutableBufferPointer<UInt8>) throws -> Void in
 					throw NOSTR_event_error.eventValidationFailed
@@ -321,8 +321,8 @@ extension NostrTests {
 		}
 
 		@Test func genericTagRejectsOverlongName() {
-			#expect(GenericTag(name: "expiration", value: "2026") == nil)
-			#expect(GenericTag(name: "e", value: "val1") != nil)
+			#expect(StringTag(name: "expiration", value: "2026") == nil)
+			#expect(StringTag(name: "e", value: "val1") != nil)
 		}
 
 		@Test func emptyNameDecodesToEmptyString() {
@@ -338,7 +338,7 @@ extension NostrTests {
 			// equality so the Hashable contract holds.
 
 			// Two tags wrapping identical bytes but as DIFFERENT concrete types.
-			let generic = GenericTag(name: "e", value: "val1")!
+			let generic = StringTag(name: "e", value: "val1")!
 			// Encode the generic tag, then decode it as the generic EventTag — same bytes.
 			var tagLen = 0; generic.RAW_encode(count: &tagLen)
 			let tagBuffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: tagLen)
@@ -363,7 +363,7 @@ extension NostrTests {
 			#expect(set.count == 1)
 
 			// A genuinely different tag is neither equal nor equal-hashing.
-			let other = GenericTag(name: "e", value: "different")!
+			let other = StringTag(name: "e", value: "different")!
 			let otherTags = NOSTR_tags(array: [other])
 			#expect(lhs != otherTags)
 			#expect(!set.contains(otherTags))

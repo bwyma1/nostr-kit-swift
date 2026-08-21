@@ -4,6 +4,7 @@ import RAW
 fileprivate struct NoticeText: NOSTR_event_content, Comparable, ExpressibleByStringLiteral { }
 
 /// A signal with an attached text sent by the server to the client.
+///
 /// Can be a warning or other relevant information.
 public struct NOSTR_message_NOTICE:Sendable, RAW_convertible {
 	
@@ -11,8 +12,10 @@ public struct NOSTR_message_NOTICE:Sendable, RAW_convertible {
 	
 	fileprivate let text:NoticeText
 	
+	/// The notice text as a Swift `String`.
 	public var noticeText:String { String(text) }
 	
+	/// Creates a NOTICE message with the given text.
 	public init(noticeText:String) {
 		self.text = NoticeText(stringLiteral: noticeText)
 	}

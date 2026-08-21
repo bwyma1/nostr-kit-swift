@@ -2,20 +2,27 @@ import RAW
 import RAW_dh25519
 
 /// Sent by the client to the server with an array of filters.
+///
 /// The server stores the REQ for the subscription and sends over the filtered data.
-/// The server continues to send over filtered data until the REQ gets replaced with a new REQ filter or the server receives a CLOSE message.
+/// The server continues to send filtered data until the REQ is replaced with a new
+/// REQ filter or the server receives a CLOSE message.
 public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x100)
 	
+	/// The subscription identifier for this request.
 	public let subscriptionID:NOSTR_subscription_ID
 	
+	/// The filters describing which events the client wants.
 	public var filters:[Filter]
 	
+	/// The requesting user's public key.
 	public var user:PublicKey
 	
+	/// Whether to fetch historical events for the subscription.
 	public var fetchHistory:EncodedBool
 	
+	/// Creates a REQ message from a subscription identifier, filters, user, and history flag.
 	public init(subscriptionID:String, filters:[Filter], from user:PublicKey, fetchHistory:Bool) {
 		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
 		self.filters = filters

@@ -5,10 +5,13 @@ public struct NOSTR_message_OK:Sendable, RAW_convertible {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x105)
 	
+	/// The identifier of the event being acknowledged.
 	public let eventID:NOSTR_id
 	
+	/// Whether the server accepted the event.
 	public let status:Bool
 	
+	/// Creates an OK message for the given event identifier and acceptance status.
 	public init(eventID:NOSTR_id, status:Bool) {
 		self.eventID = eventID
 		self.status = status

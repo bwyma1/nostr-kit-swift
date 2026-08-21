@@ -1,8 +1,11 @@
 import Foundation
 import RAW
 
+/// The name and index field of a `NOSTR_tag`.
+///
+/// The name is stored as a fixed-width, NUL-padded 8-byte field, so only names of
+/// up to 8 UTF-8 bytes can be represented.
 @RAW_staticbuff(bytes:8)
-/// The name and index field of a `NOSTR_tag`
 public struct NOSTR_tag_name:Sendable, Hashable, Comparable, RAW_convertible, RAW_accessible {
 	/// The fixed width (in bytes) of the tag-name wire field.
 	public static let maxNameBytes: Int = 8

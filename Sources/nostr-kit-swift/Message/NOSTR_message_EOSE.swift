@@ -1,17 +1,22 @@
 import RAW
 
 /// A message sent by the server to the client signaling the End Of Stored Events.
-/// This message is a response to a REQ and signals the end of sending the CURRENT stored events.
+///
+/// This message is a response to a REQ and signals the end of sending the current
+/// stored events.
 public struct NOSTR_message_EOSE:Sendable, RAW_convertible {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x102)
 	
+	/// The subscription identifier for which stored events have ended.
 	public let subscriptionID:NOSTR_subscription_ID
 	
+	/// Creates an EOSE message for the given subscription identifier string.
 	public init(subscriptionID:String) {
 		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
 	}
 	
+	/// Creates an EOSE message for the given subscription identifier.
 	public init(subscriptionID:NOSTR_subscription_ID) {
 		self.subscriptionID = subscriptionID
 	}

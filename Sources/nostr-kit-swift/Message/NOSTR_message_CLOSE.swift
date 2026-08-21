@@ -1,12 +1,17 @@
 import RAW
 
 /// A message sent by the client to a server signaling the closure of a REQ for the subscription.
+///
+/// The server stops sending events for the given subscription when it receives this
+/// message.
 public struct NOSTR_message_CLOSE:Sendable, RAW_convertible {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x103)
 	
+	/// The subscription identifier being closed.
 	public let subscriptionID:NOSTR_subscription_ID
 		
+	/// Creates a CLOSE message for the given subscription identifier string.
 	public init(subscriptionID:String) {
 		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
 	}
