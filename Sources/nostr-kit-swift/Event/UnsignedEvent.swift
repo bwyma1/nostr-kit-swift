@@ -14,14 +14,16 @@ public struct NOSTR_tags: Sendable, Hashable {
 	public static func ==(lhs: NOSTR_tags, rhs: NOSTR_tags) -> Bool {
 		guard lhs.array.count == rhs.array.count else { return false }
 		for (a, b) in zip(lhs.array, rhs.array) {
-			if a.hashValue != b.hashValue { return false } // or use `AnyHashable(a) == AnyHashable(b)`
+			if !a.isEqual(to: b) { return false }
 		}
 		return true
 	}
 
 	public func hash(into hasher: inout Hasher) {
 		for item in array {
-			hasher.combine(AnyHashable(item))
+			item.RAW_access { buffer in
+				hasher.combine(bytes: UnsafeRawBufferPointer(buffer))
+			}
 		}
 	}
 }

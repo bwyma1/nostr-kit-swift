@@ -331,7 +331,44 @@ extension NostrTests {
 			let name = zeroes.withUnsafeBytes { NOSTR_tag_name(RAW_staticbuff: $0.baseAddress!) }
 			#expect(name.string == "")
 		}
-	}
+
+		@Test func tagsEqualityAndHashAreByteLevel() throws {
+			// M1/M2 regression: `NOSTR_tags` equality must be byte-level (not via
+			// `hashValue`/`AnyHashable`), and hashing must be consistent with that
+			// equality so the Hashable contract holds.
+
+			// Two tags wrapping identical bytes but as DIFFERENT concrete types.
+			let generic = GenericTag(name: "e", value: "val1")!
+			// Encode the generic tag, then decode it as the generic EventTag — same bytes.
+			var tagLen = 0; generic.RAW_encode(count: &tagLen)
+			let tagBuffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: tagLen)
+			defer { tagBuffer.deallocate() }
+			_ = generic.RAW_encode(dest: tagBuffer.baseAddress!)
+			let decodedEventTag = EventTag(RAW_decode: tagBuffer.baseAddress!, count: tagLen)!
+
+			// Byte-level equality: different concrete types, same bytes ⇒ equal.
+			#expect(generic.isEqual(to: decodedEventTag))
+
+			let lhs = NOSTR_tags(array: [generic])
+			let rhs = NOSTR_tags(array: [decodedEventTag])
+			#expect(lhs == rhs)
+
+			// Equal ⇒ equal hash (Hashable contract).
+			#expect(lhs.hashValue == rhs.hashValue)
+
+			// Consistent Set/Dictionary keying.
+			var set: Set<NOSTR_tags> = [lhs]
+			#expect(set.contains(rhs))
+			set.insert(rhs)
+			#expect(set.count == 1)
+
+			// A genuinely different tag is neither equal nor equal-hashing.
+			let other = GenericTag(name: "e", value: "different")!
+			let otherTags = NOSTR_tags(array: [other])
+			#expect(lhs != otherTags)
+			#expect(!set.contains(otherTags))
+		}
+		}
 }
 
 extension NostrTests {

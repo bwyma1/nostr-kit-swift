@@ -37,7 +37,7 @@ public struct AccessLevelTag: Sendable, Hashable, Equatable, NOSTR_tag {}
 @NostrTag(name: "permName", valueType: EncodedString.self)
 public struct AccessLevelNameTag: Sendable, Hashable, Equatable, NOSTR_tag {}
 
-/// Initializing an event d-tag for kinds 30000-39999.
+/// Initializing a universal event d-tag for kinds 30000-39999.
 /// The d-tag adds a layer of uniqueness on top of the public key and kind for an event.
 @NostrTag(name: "d", valueType: EncodedString.self)
 public struct DTag: Sendable, Hashable, Equatable, NOSTR_tag {
