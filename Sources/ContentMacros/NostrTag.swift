@@ -77,9 +77,9 @@ public struct NostrTag: MemberMacro, ExtensionMacro {
 		return arguments
 	}
 
-	/// Extract the type name from a `valueType:` argument such as `EncodedString.self`.
+	/// Extract the type name from a `valueType:` argument such as `Encoded.String.self`.
 	static func parseValueType(from expression: ExprSyntax) -> String? {
-		// `EncodedString.self` → the base `EncodedString`.
+		// `Encoded.String.self` → the base `Encoded.String`.
 		if let member = expression.as(MemberAccessExprSyntax.self), let base = member.base {
 			return base.trimmedDescription
 		}

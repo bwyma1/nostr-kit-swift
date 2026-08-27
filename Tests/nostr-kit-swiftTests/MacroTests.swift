@@ -12,14 +12,14 @@ struct DTag: Sendable, Hashable, Equatable, NOSTR_tag {}
 
 @NostrContent
 struct BasicContent: Sendable, Equatable, Hashable {
-	public var variableA: EncodedBool
-	public var variableB: EncodedString?
+	public var variableA: Encoded.Bool
+	public var variableB: Encoded.String?
 }
 
 @NostrContent
 struct ComplexContent: Sendable, Equatable, Hashable {
 	public var content: [BasicContent]?
-	public var dictContent: [EncodedString: [EncodedUInt16?]]?
+	public var dictContent: [Encoded.String: [Encoded.UInt16?]]?
 }
 
 let testMacros: [String: MacroSpec] = [
@@ -38,19 +38,19 @@ extension NostrTests {
 				"""
 				@NostrContent
 				struct SomeContent: Sendable, Equatable, Hashable {
-					public var content: EncodedBool
+					public var content: Encoded.Bool
 				}
 				""",
 				expandedSource: """
 				struct SomeContent: Sendable, Equatable, Hashable {
-					public var content: EncodedBool
+					public var content: Encoded.Bool
 				
-				    public init(content: EncodedBool) {
+				    public init(content: Encoded.Bool) {
 				        self.content = content
 				    }
 				
 				    public init(contentNative: Bool) {
-				        self.content = EncodedBool(contentNative)
+				        self.content = Encoded.Bool(contentNative)
 				    }
 				}
 
@@ -58,11 +58,11 @@ extension NostrTests {
 					public init?(RAW_decode inputPtr: consuming UnsafeRawPointer, count: RAW.size_t) {
 					    var inputPtr = inputPtr
 					    var dataCount = count
-					    guard dataCount >= MemoryLayout<EncodedBool>.size else {
+					    guard dataCount >= MemoryLayout<Encoded.Bool>.size else {
 					        return nil
 					    }
-					    let content0 = EncodedBool(RAW_staticbuff_seeking: &inputPtr)
-					    dataCount -= MemoryLayout<EncodedBool>.size
+					    let content0 = Encoded.Bool(RAW_staticbuff_seeking: &inputPtr)
+					    dataCount -= MemoryLayout<Encoded.Bool>.size
 					    self.content = content0
 					    guard dataCount == 0 else {
 					        return nil
@@ -93,7 +93,7 @@ extension NostrTests {
 		}
 		
 		@Test func encodeDecodeBasicContent() throws {
-			var content = BasicContent(variableA: EncodedBool(true), variableB: EncodedString("Hello World"))
+			var content = BasicContent(variableA: Encoded.Bool(true), variableB: Encoded.String("Hello World"))
 			var contentLen: Int = 0; content.RAW_encode(count: &contentLen)
 			let bufferA = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLen)
 			defer { bufferA.deallocate() }
@@ -101,7 +101,7 @@ extension NostrTests {
 			var decodedContent = BasicContent(RAW_decode: bufferA.baseAddress!, count: contentLen)!
 			#expect(content == decodedContent)
 			
-			content = BasicContent(variableA: EncodedBool(false), variableB: nil)
+			content = BasicContent(variableA: Encoded.Bool(false), variableB: nil)
 			contentLen = 0; content.RAW_encode(count: &contentLen)
 			let bufferB = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLen)
 			defer { bufferB.deallocate() }
@@ -111,14 +111,14 @@ extension NostrTests {
 		}
 		
 		@Test func encodeDecodeComplexContent() throws {
-			let dictContent: [EncodedString: [EncodedUInt16?]]? = [
-				EncodedString("first"): [EncodedUInt16(1), EncodedUInt16(2), nil],
-				EncodedString("second"): [nil, EncodedUInt16(42)]
+			let dictContent: [Encoded.String: [Encoded.UInt16?]]? = [
+				Encoded.String("first"): [Encoded.UInt16(1), Encoded.UInt16(2), nil],
+				Encoded.String("second"): [nil, Encoded.UInt16(42)]
 			]
 			let content = ComplexContent(
 				content: [
-					BasicContent(variableA: EncodedBool(true), variableB: EncodedString("Hello World")),
-					BasicContent(variableA: EncodedBool(false), variableB: nil),
+					BasicContent(variableA: Encoded.Bool(true), variableB: Encoded.String("Hello World")),
+					BasicContent(variableA: Encoded.Bool(false), variableB: nil),
 				],
 				dictContent: dictContent
 				)
@@ -128,6 +128,35 @@ extension NostrTests {
 			_ = content.RAW_encode(dest:bufferA.baseAddress!)
 			let decodedContent = ComplexContent(RAW_decode: bufferA.baseAddress!, count: contentLen)!
 			#expect(content == decodedContent)
+		}
+		
+		@Test func truncatedContentDecodeRejectsOutOfBounds() throws {
+			// Regression test for H1/H2: @NostrContent-generated decoders must not read
+			// past the buffer on truncated input. BasicContent exercises the optional
+			// presence-flag read (H2); ComplexContent additionally exercises the
+			// dictionary-length read (H1). Each is truncated at every byte boundary —
+			// the decoder must decode a complete prefix, return nil for a truncated
+			// one, or reject — never crash or over-read.
+			let basic = BasicContent(variableA: Encoded.Bool(true), variableB: Encoded.String("Hello World"))
+			var basicLen: Int = 0; basic.RAW_encode(count: &basicLen)
+			let basicBuffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: basicLen)
+			defer { basicBuffer.deallocate() }
+			_ = basic.RAW_encode(dest: basicBuffer.baseAddress!)
+			for cut in 0..<basicLen {
+				_ = BasicContent(RAW_decode: basicBuffer.baseAddress!, count: cut)
+			}
+
+			let dictContent: [Encoded.String: [Encoded.UInt16?]]? = [
+				Encoded.String("first"): [Encoded.UInt16(1), Encoded.UInt16(2), nil]
+			]
+			let complex = ComplexContent(content: nil, dictContent: dictContent)
+			var complexLen: Int = 0; complex.RAW_encode(count: &complexLen)
+			let complexBuffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: complexLen)
+			defer { complexBuffer.deallocate() }
+			_ = complex.RAW_encode(dest: complexBuffer.baseAddress!)
+			for cut in 0..<complexLen {
+				_ = ComplexContent(RAW_decode: complexBuffer.baseAddress!, count: cut)
+			}
 		}
 		
 		@Test func encodeDecodeTag() throws {
@@ -147,13 +176,13 @@ extension NostrTests {
 				@NostrTag(name: "")
 				struct EmptyTag: Sendable, Hashable, Equatable, NOSTR_tag {
 					var indexField: NOSTR_tag_name
-					var value: EncodedString
+					var value: Encoded.String
 				}
 				""",
 				expandedSource: """
 				struct EmptyTag: Sendable, Hashable, Equatable, NOSTR_tag {
 					var indexField: NOSTR_tag_name
-					var value: EncodedString
+					var value: Encoded.String
 				}
 				""",
 				diagnostics: [
@@ -183,13 +212,13 @@ extension NostrTests {
 				@NostrTag(name: "expiration")
 				struct ExpTag: Sendable, Hashable, Equatable, NOSTR_tag {
 					var indexField: NOSTR_tag_name
-					var value: EncodedString
+					var value: Encoded.String
 				}
 				""",
 				expandedSource: """
 				struct ExpTag: Sendable, Hashable, Equatable, NOSTR_tag {
 					var indexField: NOSTR_tag_name
-					var value: EncodedString
+					var value: Encoded.String
 				}
 				""",
 				diagnostics: [

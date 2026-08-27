@@ -24,11 +24,45 @@ public enum NOSTR_message<UnsignedEvent: NOSTR_event_unsigned> {
 	case NOTICE(NOSTR_message_NOTICE)
 	/// A server-to-client acknowledgement of a published event.
 	case OK(NOSTR_message_OK)
-}
 
-//public func decodeNOSTRMessage(_ ptr:UnsafeRawBufferPointer, contentTypes: [NOSTR_event_content.Type]) -> NOSTR_message {
-//	
-//}
+	/// Attempts to decode a single NOSTR message from the given raw bytes.
+	///
+	/// Each concrete message type embeds its own type tag, so the decoder tries
+	/// every known message format and returns the first one that matches. If the
+	/// bytes do not match any known format, this returns `nil`.
+	///
+	/// - Parameter ptr: The raw bytes of a single NOSTR wire message.
+	/// - Returns: The decoded message, or `nil` if the bytes are not a known message.
+	public static func decode(_ ptr: UnsafeRawBufferPointer) -> NOSTR_message<UnsignedEvent>? {
+		guard let baseAddress = ptr.baseAddress, ptr.count > 0 else { return nil }
+		let count = RAW.size_t(ptr.count)
+		// Try EVENT.
+		if let event = NOSTR_message_EVENT<UnsignedEvent>(RAW_decode: baseAddress, count: count) {
+			return .EVENT(event)
+		}
+		// Try REQ.
+		if let request = NOSTR_message_REQ(RAW_decode: baseAddress, count: count) {
+			return .REQ(request)
+		}
+		// Try EOSE.
+		if let eose = NOSTR_message_EOSE(RAW_decode: baseAddress, count: count) {
+			return .EOSE(eose)
+		}
+		// Try CLOSE.
+		if let close = NOSTR_message_CLOSE(RAW_decode: baseAddress, count: count) {
+			return .CLOSE(close)
+		}
+		// Try NOTICE.
+		if let notice = NOSTR_message_NOTICE(RAW_decode: baseAddress, count: count) {
+			return .NOTICE(notice)
+		}
+		// Try OK.
+		if let ok = NOSTR_message_OK(RAW_decode: baseAddress, count: count) {
+			return .OK(ok)
+		}
+		return nil
+	}
+}
 
 @RAW_staticbuff(bytes:4)
 @RAW_staticbuff_fixedwidthinteger_type<UInt32>(bigEndian: true)

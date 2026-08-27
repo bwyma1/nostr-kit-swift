@@ -18,10 +18,20 @@ enum NostrContentError: CustomStringConvertible, Error {
 	}
 }
 
-fileprivate let nostrContentTypes = ["EncodedBool", "EncodedUInt16", "EncodedUInt32", "EncodedUInt64", "EncodedUInt128", "EncodedInt16", "EncodedInt32", "EncodedUInt64", "EncodedInt128", "EncodedFloat", "EncodedString", "EncodedDate", "EncodedData"]
+fileprivate let nostrContentTypes = ["Encoded.Bool", "Encoded.UInt16", "Encoded.UInt32", "Encoded.UInt64", "Encoded.UInt128", "Encoded.Int16", "Encoded.Int32", "Encoded.Int64", "Encoded.Int128", "Encoded.Float", "Encoded.String", "Encoded.Date", "Encoded.Data"]
+
+fileprivate func scalarTypeName(_ type: TypeSyntax) -> String? {
+	if let ident = type.as(IdentifierTypeSyntax.self) {
+		return ident.name.text
+	}
+	if let member = type.as(MemberTypeSyntax.self) {
+		return member.trimmedDescription
+	}
+	return nil
+}
 
 fileprivate func rawDecodeIdentifierSyntax(identifier:String, type: String, layer: Int) -> String {
-	if type == "EncodedString" {
+	if type == "Encoded.String" {
 		return
 		   """
 		   guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
@@ -32,7 +42,7 @@ fileprivate func rawDecodeIdentifierSyntax(identifier:String, type: String, laye
 		   inputPtr = inputPtr.advanced(by: \(identifier)Length)
 		   dataCount -= \(identifier)Length\n
 		   """
-	} else if type == "EncodedData" {
+	} else if type == "Encoded.Data" {
 		return
 			"""
 			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
@@ -65,7 +75,7 @@ fileprivate func rawDecodeIdentifierSyntax(identifier:String, type: String, laye
 }
 
 fileprivate func rawEncodeCountIdentifierSyntax(identifier:String, type: String, layer: Int) -> String {
-	if type == "EncodedString" || type == "EncodedData" {
+	if type == "Encoded.String" || type == "Encoded.Data" {
 		return
 			"""
 			count += MemoryLayout<Bytes4>.size
@@ -86,7 +96,7 @@ fileprivate func rawEncodeCountIdentifierSyntax(identifier:String, type: String,
 }
 
 fileprivate func rawEncodeIdentifierSyntax(identifier:String, type: String, layer: Int) -> String {
-	if type == "EncodedString" || type == "EncodedData" {
+	if type == "Encoded.String" || type == "Encoded.Data" {
 		return
 			"""
 			var \(identifier)Length = 0; \(identifier).RAW_encode(count: &\(identifier)Length)
@@ -126,6 +136,7 @@ fileprivate func resolveDecodeTypeAnnotation(type: TypeSyntax, identifier: Strin
 		result +=
 			"""
 			var \(identifier)\(layer): \(dictType.description) = [:]
+			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
 			let \(identifier)\(layer)DictLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
 			for _ in 0..<\(identifier)\(layer)DictLength {\n
@@ -156,8 +167,9 @@ fileprivate func resolveDecodeTypeAnnotation(type: TypeSyntax, identifier: Strin
 		result +=
 			"""
 			var \(identifier)\(layer): \(optionalType.description)
-			let \(identifier)Exists = EncodedBool(RAW_staticbuff_seeking: &inputPtr)
-			dataCount -= MemoryLayout<EncodedBool>.size
+			guard dataCount >= MemoryLayout<Encoded.Bool>.size else { return nil }
+			let \(identifier)Exists = Encoded.Bool(RAW_staticbuff_seeking: &inputPtr)
+			dataCount -= MemoryLayout<Encoded.Bool>.size
 			if \(identifier)Exists.bool {\n
 			"""
 		result += resolveDecodeTypeAnnotation(type: optionalType.wrappedType, identifier: identifier, layer: layer + 1)
@@ -168,8 +180,8 @@ fileprivate func resolveDecodeTypeAnnotation(type: TypeSyntax, identifier: Strin
 				\(identifier)\(layer) = nil
 			}\n
 			"""
-	} else if let type = type.as(IdentifierTypeSyntax.self) {
-		result += rawDecodeIdentifierSyntax(identifier: identifier, type: type.name.text, layer: layer)
+	} else if let type = scalarTypeName(type) {
+		result += rawDecodeIdentifierSyntax(identifier: identifier, type: type, layer: layer)
 	}
 	
 	if layer == 0 {
@@ -201,13 +213,13 @@ fileprivate func resolveEncodeCountTypeAnnotation(type: TypeSyntax, identifier: 
 	} else if let optionalType = type.as(OptionalTypeSyntax.self) {
 		result +=
 			"""
-			count += MemoryLayout<EncodedBool>.size
+			count += MemoryLayout<Encoded.Bool>.size
 			if let \(identifier) = \(identifier){\n
 			"""
 		result += resolveEncodeCountTypeAnnotation(type: optionalType.wrappedType, identifier: identifier, layer: layer)
 		result += "}\n"
-	} else if let type = type.as(IdentifierTypeSyntax.self) {
-		result += rawEncodeCountIdentifierSyntax(identifier: identifier, type: type.name.text, layer: layer)
+	} else if let type = scalarTypeName(type) {
+		result += rawEncodeCountIdentifierSyntax(identifier: identifier, type: type, layer: layer)
 	}	
 	return result
 }
@@ -238,17 +250,17 @@ fileprivate func resolveEncodeTypeAnnotation(type: TypeSyntax, identifier: Strin
 		result +=
 			"""
 			if let \(identifier) = \(identifier){
-				dest = EncodedBool(true).RAW_encode(dest: dest)\n
+				dest = Encoded.Bool(true).RAW_encode(dest: dest)\n
 			"""
 		result += resolveEncodeTypeAnnotation(type: optionalType.wrappedType, identifier: identifier, layer: layer)
 		result +=
 			"""
 			} else {
-				dest = EncodedBool(false).RAW_encode(dest: dest)
+				dest = Encoded.Bool(false).RAW_encode(dest: dest)
 			}\n
 			"""
-	} else if let type = type.as(IdentifierTypeSyntax.self) {
-		result += rawEncodeIdentifierSyntax(identifier: identifier, type: type.name.text, layer: layer)
+	} else if let type = scalarTypeName(type) {
+		result += rawEncodeIdentifierSyntax(identifier: identifier, type: type, layer: layer)
 	}
 	return result
 }
@@ -403,12 +415,12 @@ extension NostrContent: MemberMacro {
 				let trimmedType = typeAnnotation.type.description.replacingOccurrences(of: "?", with: "")
 				let parameterName = identifier.identifier.text + "Native"
 				if nostrContentTypes.contains(trimmedType) {
-					foundationInitializerDecl += "\(parameterName):\(typeAnnotation.type.description.replacingOccurrences(of: "Encoded", with: "")),"
+					foundationInitializerDecl += "\(parameterName):\(typeAnnotation.type.description.replacingOccurrences(of: "Encoded.", with: "")),"
 					
 					let typeValue: String
-					if trimmedType == "EncodedString" || trimmedType == "EncodedBool" || trimmedType == "EncodedData" {
+					if trimmedType == "Encoded.String" || trimmedType == "Encoded.Bool" || trimmedType == "Encoded.Data" {
 						typeValue = "(\(parameterName))"
-					} else if trimmedType == "EncodedDate" {
+					} else if trimmedType == "Encoded.Date" {
 						typeValue = "(date: \(parameterName))"
 					} else {
 						typeValue = "(RAW_native: \(parameterName))"

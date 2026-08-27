@@ -65,6 +65,29 @@ extension NostrTests {
 			let decodedSignedEvent = NOSTR_event_signed<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: eventLen)!
 			#expect(decodedSignedEvent.isValidSignature())
 		}
+
+		@Test func truncatedUnsignedEventDecodeRejectsOutOfBounds() throws {
+			// Fix #3: event decoders must tolerate truncation at any byte boundary
+			// without reading past the buffer (mirrors truncatedFilter…).
+			var eventLen = 0; event.RAW_encode(count: &eventLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eventLen)
+			defer { buffer.deallocate() }
+			_ = event.RAW_encode(dest: buffer.baseAddress!)
+			for cut in 0..<eventLen {
+				_ = UnsignedEvent<StringContent>(RAW_decode: buffer.baseAddress!, count: cut)
+			}
+		}
+
+		@Test func truncatedSignedEventDecodeRejectsOutOfBounds() throws {
+			let signedEvent = try event.sign(as: privateKey)
+			var eventLen = 0; signedEvent.RAW_encode(count: &eventLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eventLen)
+			defer { buffer.deallocate() }
+			_ = signedEvent.RAW_encode(dest: buffer.baseAddress!)
+			for cut in 0..<eventLen {
+				_ = NOSTR_event_signed<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: cut)
+			}
+		}
 		
 		@Test func signAndVerifyEvent() throws {
 			let signedEvent = try event.sign(as: privateKey)
@@ -389,6 +412,83 @@ extension NostrTests {
 			#expect(decodedReqMessage.subscriptionID == reqMessage.subscriptionID)
 			#expect(decodedReqMessage.type == reqMessage.type)
 		}
+
+		@Test func truncatedREQDecodeRejectsOutOfBounds() throws {
+			// Regression test for H3: encoding a valid REQ and truncating it at every
+			// byte boundary must never read past the buffer (the message-type tag read
+			// used to be bounds-checked against the original length instead of the
+			// remaining bytes). The decoder must decode a complete prefix, return nil
+			// for a truncated one, or reject — never crash or over-read.
+			let reqMessage = NOSTR_message_REQ(subscriptionID: "home", filters: [Filter()], from: PublicKey(privateKey: NostrEventTests.staticPrivateKey), fetchHistory: false)
+			var reqLen = 0; reqMessage.RAW_encode(count: &reqLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: reqLen)
+			defer { buffer.deallocate() }
+			_ = reqMessage.RAW_encode(dest: buffer.baseAddress!)
+
+			for cut in 0..<reqLen {
+				_ = NOSTR_message_REQ(RAW_decode: buffer.baseAddress!, count: cut)
+			}
+		}
+
+		@Test func truncatedEOSEDecodeRejectsOutOfBounds() throws {
+			// Fix #3: every message decoder must tolerate truncation at any byte
+			// boundary without reading past the buffer (mirrors truncatedFilter…).
+			let message = NOSTR_message_EOSE(subscriptionID: "home")
+			var messageLen = 0; message.RAW_encode(count: &messageLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
+			defer { buffer.deallocate() }
+			_ = message.RAW_encode(dest: buffer.baseAddress!)
+			for cut in 0..<messageLen {
+				_ = NOSTR_message_EOSE(RAW_decode: buffer.baseAddress!, count: cut)
+			}
+		}
+
+		@Test func truncatedCLOSEDecodeRejectsOutOfBounds() throws {
+			let message = NOSTR_message_CLOSE(subscriptionID: "home")
+			var messageLen = 0; message.RAW_encode(count: &messageLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
+			defer { buffer.deallocate() }
+			_ = message.RAW_encode(dest: buffer.baseAddress!)
+			for cut in 0..<messageLen {
+				_ = NOSTR_message_CLOSE(RAW_decode: buffer.baseAddress!, count: cut)
+			}
+		}
+
+		@Test func truncatedNOTICEDecodeRejectsOutOfBounds() throws {
+			let message = NOSTR_message_NOTICE(noticeText: "Hello World!")
+			var messageLen = 0; message.RAW_encode(count: &messageLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
+			defer { buffer.deallocate() }
+			_ = message.RAW_encode(dest: buffer.baseAddress!)
+			for cut in 0..<messageLen {
+				_ = NOSTR_message_NOTICE(RAW_decode: buffer.baseAddress!, count: cut)
+			}
+		}
+
+		@Test func truncatedOKDecodeRejectsOutOfBounds() throws {
+			let message = NOSTR_message_OK(eventID: try generateSecureRandomBytes(as: NOSTR_id.self), status: true)
+			var messageLen = 0; message.RAW_encode(count: &messageLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
+			defer { buffer.deallocate() }
+			_ = message.RAW_encode(dest: buffer.baseAddress!)
+			for cut in 0..<messageLen {
+				_ = NOSTR_message_OK(RAW_decode: buffer.baseAddress!, count: cut)
+			}
+		}
+
+		@Test func truncatedEVENTMessageDecodeRejectsOutOfBounds() throws {
+			let (eventPublicKey, eventPrivateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
+			let event = try UnsignedEvent(publicKey: eventPublicKey, date: NOSTR_date(date: Date()), tags: [StringTag(name: "e", value: "val1")!], application: NOSTR_application(RAW_native: 2), kind: NOSTR_kind(RAW_native: 1), content: StringContent(stringLiteral: "Some Nostr Content"))
+			let signedEvent = try event.sign(as: eventPrivateKey)
+			let message = NOSTR_message_EVENT(subscriptionID: "home", event: signedEvent)
+			var messageLen = 0; message.RAW_encode(count: &messageLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
+			defer { buffer.deallocate() }
+			_ = message.RAW_encode(dest: buffer.baseAddress!)
+			for cut in 0..<messageLen {
+				_ = NOSTR_message_EVENT<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: cut)
+			}
+		}
 		
 		@Test func encodeDecodeEOSEMessage() throws {
 			let eoseMessage = NOSTR_message_EOSE(subscriptionID: "home")
@@ -432,6 +532,67 @@ extension NostrTests {
 			_ = okMessage.RAW_encode(dest:buffer.baseAddress!)
 			let decodedOkMessage = NOSTR_message_OK(RAW_decode: buffer.baseAddress!, count: okLen)!
 			#expect(decodedOkMessage.type == okMessage.type)
+		}
+	}
+}
+
+extension NostrTests {
+	@Suite("Encoded Scalar Tests",
+		.serialized
+	)
+
+	struct EncodedScalarTests {
+		// Encodes `value`, decodes it back, and asserts the round trip is lossless
+		// (fix #3: direct coverage for the Encoded.* content scalars).
+		private func assertRoundTrip<T: RAW_convertible & Equatable>(_ value: T) throws -> T {
+			var len = 0
+			value.RAW_encode(count: &len)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: len)
+			defer { buffer.deallocate() }
+			_ = value.RAW_encode(dest: buffer.baseAddress!)
+			let decoded = T(RAW_decode: buffer.baseAddress!, count: len)
+			#expect(decoded == value)
+			return decoded!
+		}
+
+		@Test func fixedWidthIntegersRoundTrip() throws {
+			#expect(try assertRoundTrip(Encoded.UInt16(RAW_native: UInt16.max)).RAW_native() == UInt16.max)
+			#expect(try assertRoundTrip(Encoded.UInt32(RAW_native: UInt32.max)).RAW_native() == UInt32.max)
+			#expect(try assertRoundTrip(Encoded.UInt64(RAW_native: UInt64.max)).RAW_native() == UInt64.max)
+			#expect(try assertRoundTrip(Encoded.UInt128(RAW_native: UInt128.max)).RAW_native() == UInt128.max)
+			#expect(try assertRoundTrip(Encoded.Int16(RAW_native: Int16.min)).RAW_native() == Int16.min)
+			#expect(try assertRoundTrip(Encoded.Int32(RAW_native: Int32.min)).RAW_native() == Int32.min)
+			#expect(try assertRoundTrip(Encoded.Int64(RAW_native: Int64.min)).RAW_native() == Int64.min)
+			#expect(try assertRoundTrip(Encoded.Int128(RAW_native: Int128.min)).RAW_native() == Int128.min)
+		}
+
+		@Test func boolRoundTrip() throws {
+			let decoded = try assertRoundTrip(Encoded.Bool(true))
+			#expect(decoded.bool == true)
+			let decodedFalse = try assertRoundTrip(Encoded.Bool(false))
+			#expect(decodedFalse.bool == false)
+		}
+
+		@Test func floatingPointRoundTrip() throws {
+			let decoded = try assertRoundTrip(Encoded.Float(RAW_native: 3.1415927))
+			#expect(decoded.RAW_native() == 3.1415927)
+		}
+
+		@Test func dateRoundTrip() throws {
+			let decoded = try assertRoundTrip(Encoded.Date(RAW_native: 1_700_000_000))
+			#expect(decoded.RAW_native() == 1_700_000_000)
+			#expect(decoded.currentDate() == Foundation.Date(timeIntervalSince1970: 1_700_000_000))
+		}
+
+		@Test func stringRoundTrip() throws {
+			let decoded = try assertRoundTrip(Encoded.String("Hello World"))
+			#expect(decoded.debugDescription == "Hello World")
+		}
+
+		@Test func dataRoundTrip() throws {
+			let payload = Foundation.Data([0xDE, 0xAD, 0xBE, 0xEF])
+			let decoded = try assertRoundTrip(Encoded.Data(payload))
+			#expect(decoded.data == payload)
 		}
 	}
 }

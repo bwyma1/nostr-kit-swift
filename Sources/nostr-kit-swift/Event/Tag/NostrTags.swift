@@ -21,14 +21,14 @@ public struct StringTag: Sendable, Hashable, Equatable, NOSTR_tag {
 	/// The tag's index field (its name).
 	public var indexField: NOSTR_tag_name
 	/// The tag's value.
-	public var value: EncodedString
+	public var value: Encoded.String
 	/// Creates a generic tag from a name and a string value.
 	///
 	/// Returns `nil` if `name` is longer than `NOSTR_tag_name.maxNameBytes`.
 	public init?(name:String, value: String) {
 		guard let indexField = NOSTR_tag_name(string: name) else { return nil }
 		self.indexField = indexField
-		self.value = EncodedString(value)
+		self.value = Encoded.String(value)
 	}
 }
 
@@ -46,18 +46,18 @@ public struct UserTag: Sendable, Hashable, Equatable, NOSTR_tag {}
 public struct AccessLevelTag: Sendable, Hashable, Equatable, NOSTR_tag {}
 
 /// An event tag holding the name of a user's permission.
-@NostrTag(name: "permName", valueType: EncodedString.self)
+@NostrTag(name: "permName", valueType: Encoded.String.self)
 public struct AccessLevelNameTag: Sendable, Hashable, Equatable, NOSTR_tag {}
 
 /// An event d-tag, which adds uniqueness on top of the public key and kind for an
 /// event (used by parameterized replaceable events).
-@NostrTag(name: "d", valueType: EncodedString.self)
+@NostrTag(name: "d", valueType: Encoded.String.self)
 public struct DTag: Sendable, Hashable, Equatable, NOSTR_tag {
 	/// Creates a d-tag from a raw, access-encodable value.
 	public init?(raw: any RAW_accessible) {
-		var value: EncodedString?
+		var value: Encoded.String?
 		raw.RAW_access { ptr in
-			value = EncodedString(RAW_accessed: ptr)
+			value = Encoded.String(RAW_accessed: ptr)
 		}
 		guard let value = value else { return nil }
 		self.value = value
