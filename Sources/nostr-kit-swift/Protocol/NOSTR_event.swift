@@ -148,14 +148,14 @@ extension NOSTR_event_unsigned {
 	/// recomputed from the current fields and compared against the stored id
 	/// (and the remaining fields validated) before a signature is produced;
 	/// if validation fails, `NOSTR_event_error.eventValidationFailed` is thrown.
-	public func sign(as author:MemoryGuarded<Ed25519.PrivateKey>) throws -> NOSTR_event_signed<Self> {
+	public func sign(as author:MemoryGuarded<RAW_ed25519.PrivateKey>) throws -> NOSTR_event_signed<Self> {
 		guard isValid() else {
 			throw NOSTR_event_error.eventValidationFailed
 		}
 		var sig = NOSTR_sig(RAW_staticbuff: NOSTR_sig.RAW_staticbuff_zeroed())
 		sig.RAW_access_mutating { sigPtr in
 			id.RAW_access { msgPtr in
-				Ed25519.sign(signature: sigPtr.baseAddress!, privateKey: author, message: msgPtr)
+				RAW_ed25519.sign(to: sigPtr.baseAddress!, privateKey: author, message: msgPtr)
 			}
 		}
 		return NOSTR_event_signed(unsignedEvent: self, sig: sig)
@@ -211,7 +211,7 @@ extension NOSTR_event_signed {
 		guard unsignedEvent.isValid() else { return false }
 		return sig.RAW_access_staticbuff { sigPtr in
 			unsignedEvent.id.RAW_access { msgPtr in
-				Ed25519.verify(signature: sigPtr, publicKey: unsignedEvent.publicKey, message: msgPtr)
+				RAW_ed25519.verify(signature: sigPtr.assumingMemoryBound(to: UInt8.self), publicKey: unsignedEvent.publicKey, message: msgPtr)
 			}
 		}
 	}

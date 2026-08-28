@@ -14,13 +14,13 @@ extension NostrTests {
 		.serialized
 	)
 	struct NostrEventTests {
-		static let staticPrivateKey = MemoryGuarded<PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
+		static let staticPrivateKey = MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
 		let tags: [any NOSTR_tag]
 		let date:NOSTR_date
 		let application:NOSTR_application
 		let kind:NOSTR_kind
 		let publicKey:PublicKey
-		let privateKey:MemoryGuarded<Ed25519.PrivateKey>
+		let privateKey:MemoryGuarded<RAW_ed25519.PrivateKey>
 		let content:StringContent
 		let event:UnsignedEvent<StringContent>
 		
@@ -29,7 +29,7 @@ extension NostrTests {
 			let tag2 = StringTag(name: "e", value: "val2")!
 			let tag3 = StringTag(name: "p", value: "val3")!
 			tags = [tag, tag2, tag3]
-			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
+			(publicKey, privateKey) = try generateKeys(secretKey: NostrEventTests.staticPrivateKey)
 			date = NOSTR_date(date: Date())
 			application = NOSTR_application(RAW_native: 2)
 			kind = NOSTR_kind(RAW_native: 1)
@@ -209,20 +209,20 @@ extension NostrTests {
 		   .serialized
 	)
 	struct NostrEventValidationTests {
-		static let staticPrivateKey = MemoryGuarded<PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
+		static let staticPrivateKey = MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
 		let tags: [any NOSTR_tag]
 		let date: NOSTR_date
 		let application: NOSTR_application
 		let kind: NOSTR_kind
 		let publicKey: PublicKey
-		let privateKey: MemoryGuarded<Ed25519.PrivateKey>
+		let privateKey: MemoryGuarded<RAW_ed25519.PrivateKey>
 		let content: StringContent
 		let event: UnsignedEvent<StringContent>
 
 		init() throws {
 			let tag = StringTag(name: "e", value: "val1")!
 			tags = [tag]
-			(publicKey, privateKey) = try Ed25519.generateKeys(secretKey: NostrEventValidationTests.staticPrivateKey)
+			(publicKey, privateKey) = try generateKeys(secretKey: NostrEventValidationTests.staticPrivateKey)
 			date = NOSTR_date(date: Date())
 			application = NOSTR_application(RAW_native: 2)
 			kind = NOSTR_kind(RAW_native: 1)
@@ -477,7 +477,7 @@ extension NostrTests {
 		}
 
 		@Test func truncatedEVENTMessageDecodeRejectsOutOfBounds() throws {
-			let (eventPublicKey, eventPrivateKey) = try Ed25519.generateKeys(secretKey: NostrEventTests.staticPrivateKey)
+			let (eventPublicKey, eventPrivateKey) = try generateKeys(secretKey: NostrEventTests.staticPrivateKey)
 			let event = try UnsignedEvent(publicKey: eventPublicKey, date: NOSTR_date(date: Date()), tags: [StringTag(name: "e", value: "val1")!], application: NOSTR_application(RAW_native: 2), kind: NOSTR_kind(RAW_native: 1), content: StringContent(stringLiteral: "Some Nostr Content"))
 			let signedEvent = try event.sign(as: eventPrivateKey)
 			let message = NOSTR_message_EVENT(subscriptionID: "home", event: signedEvent)

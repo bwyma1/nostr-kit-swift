@@ -12,7 +12,7 @@ let package = Package(
     ],
 	dependencies: [
 		.package(url:"https://github.com/apple/swift-syntax.git", "602.0.0"..<"603.0.0"),
-		.package(url:"https://github.com/tannerdsilva/rawdog.git", revision: "1c4966c72102fc01b169cbc18ee5f0be10d802de"),
+		.package(url:"https://github.com/tannerdsilva/rawdog.git", "21.0.0"..<"22.0.0"),
 	],
     targets: [
 		.macro(
