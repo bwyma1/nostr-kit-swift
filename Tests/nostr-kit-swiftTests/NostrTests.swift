@@ -14,7 +14,7 @@ extension NostrTests {
 		.serialized
 	)
 	struct NostrEventTests {
-		static let staticPrivateKey = MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
+		static let staticPrivateKey = MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode: try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI=").withUnsafeBytes { UnsafeRawBufferPointer($0) })!
 		let tags: [any NOSTR_tag]
 		let date:NOSTR_date
 		let application:NOSTR_application
@@ -43,7 +43,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: tagLen)
 			defer { buffer.deallocate() }
 			_ = tag.RAW_encode(dest:buffer.baseAddress!)
-			let decodedTag = EventTag(RAW_decode: buffer.baseAddress!, count: tagLen)!
+			let decodedTag = EventTag(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: tagLen))!
 			#expect(tag.indexField == decodedTag.indexField && tag.value.isEqual(to: decodedTag.value))
 		}
 		
@@ -52,7 +52,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eventLen)
 			defer { buffer.deallocate() }
 			_ = event.RAW_encode(dest:buffer.baseAddress!)
-			let decodedEvent = UnsignedEvent<StringContent>(RAW_decode: buffer.baseAddress!, count: eventLen)!
+			let decodedEvent = UnsignedEvent<StringContent>(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: eventLen))!
 			#expect(event == decodedEvent)
 		}
 		
@@ -62,7 +62,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eventLen)
 			defer { buffer.deallocate() }
 			_ = signedEvent.RAW_encode(dest:buffer.baseAddress!)
-			let decodedSignedEvent = NOSTR_event_signed<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: eventLen)!
+			let decodedSignedEvent = NOSTR_event_signed<UnsignedEvent<StringContent>>(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: eventLen))!
 			#expect(decodedSignedEvent.isValidSignature())
 		}
 
@@ -74,7 +74,7 @@ extension NostrTests {
 			defer { buffer.deallocate() }
 			_ = event.RAW_encode(dest: buffer.baseAddress!)
 			for cut in 0..<eventLen {
-				_ = UnsignedEvent<StringContent>(RAW_decode: buffer.baseAddress!, count: cut)
+				_ = UnsignedEvent<StringContent>(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
 		}
 
@@ -85,7 +85,7 @@ extension NostrTests {
 			defer { buffer.deallocate() }
 			_ = signedEvent.RAW_encode(dest: buffer.baseAddress!)
 			for cut in 0..<eventLen {
-				_ = NOSTR_event_signed<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: cut)
+				_ = NOSTR_event_signed<UnsignedEvent<StringContent>>(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
 		}
 		
@@ -100,7 +100,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eventLen)
 			defer { buffer.deallocate() }
 			_ = signedEvent.RAW_encode(dest:buffer.baseAddress!)
-			signedEvent.RAW_access { ptr in
+			signedEvent.RAW_access_immutable { ptr in
 				#expect(ptr.count == buffer.count)
 				#expect(memcmp(ptr.baseAddress!, buffer.baseAddress!, buffer.count) == 0)
 			}
@@ -114,7 +114,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: filterLen)
 			defer { buffer.deallocate() }
 			_ = filter.RAW_encode(dest:buffer.baseAddress!)
-			let decodedFilter = Filter(RAW_decode: buffer.baseAddress!, count: filterLen)!
+			let decodedFilter = Filter(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: filterLen))!
 			#expect(filter.ids == decodedFilter.ids)
 			#expect(filter.authors == decodedFilter.authors)
 			#expect(filter.kinds == decodedFilter.kinds)
@@ -131,7 +131,7 @@ extension NostrTests {
 			let nilBuffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: filterLen)
 			defer { nilBuffer.deallocate() }
 			_ = nilFilter.RAW_encode(dest:nilBuffer.baseAddress!)
-			let decodedNilFilter = Filter(RAW_decode: nilBuffer.baseAddress!, count: filterLen)!
+			let decodedNilFilter = Filter(RAW_decode: UnsafeRawBufferPointer(start: nilBuffer.baseAddress!, count: filterLen))!
 			#expect(nilFilter.ids == decodedNilFilter.ids)
 			#expect(decodedNilFilter.authors.isEmpty)
 			#expect(nilFilter.kinds == decodedNilFilter.kinds)
@@ -157,7 +157,7 @@ extension NostrTests {
 
 			for cut in 0..<filterLen {
 				// Simulate a truncated wire message: only the first `cut` bytes arrive.
-				let truncated = Filter(RAW_decode: buffer.baseAddress!, count: cut)
+				let truncated = Filter(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 				// Accepting a short-but-valid prefix is fine; it must simply not crash.
 				_ = truncated
 			}
@@ -167,7 +167,7 @@ extension NostrTests {
 			// The ids count byte (first byte) claims 1 id is present. Rewrite it to claim
 			// 255 ids — far more than the buffer can hold. The decoder must reject it.
 			overlong[0] = 255
-			let rejected = Filter(RAW_decode: overlong, count: overlong.count)
+			let rejected = overlong.withUnsafeBytes { Filter(RAW_decode: UnsafeRawBufferPointer($0)) }
 			#expect(rejected == nil)
 		}
 		
@@ -178,7 +178,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
 			defer { buffer.deallocate() }
 			_ = eventMessage.RAW_encode(dest:buffer.baseAddress!)
-			let decodedEventMessage = NOSTR_message_EVENT<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: messageLen)!
+			let decodedEventMessage = NOSTR_message_EVENT<UnsignedEvent<StringContent>>(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: messageLen))!
 			#expect(eventMessage.type == decodedEventMessage.type)
 			#expect(eventMessage.event.id == decodedEventMessage.event.id)
 			#expect(decodedEventMessage.event.isValidSignature())
@@ -209,7 +209,7 @@ extension NostrTests {
 		   .serialized
 	)
 	struct NostrEventValidationTests {
-		static let staticPrivateKey = MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode:try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI="), count:32)!
+		static let staticPrivateKey = MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode: try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI=").withUnsafeBytes { UnsafeRawBufferPointer($0) })!
 		let tags: [any NOSTR_tag]
 		let date: NOSTR_date
 		let application: NOSTR_application
@@ -239,7 +239,7 @@ extension NostrTests {
 			// A signature that is valid over the stored id must still be rejected if the
 			// stored id does not match the recomputed hash of the fields.
 			var wrongID = signedEvent.unsignedEvent.id
-			wrongID.RAW_access_mutating { ptr in
+			wrongID.RAW_access_mutable { ptr in
 				ptr.baseAddress![0] ^= 0xFF
 			}
 			let badEvent = UnsignedEvent(id: wrongID, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
@@ -249,7 +249,7 @@ extension NostrTests {
 
 		@Test func signRejectsEventWithWrongID() throws {
 			var wrongID = event.id
-			wrongID.RAW_access_mutating { ptr in
+			wrongID.RAW_access_mutable { ptr in
 				ptr.baseAddress![0] ^= 0xFF
 			}
 			let badEvent = UnsignedEvent(id: wrongID, publicKey: publicKey, date: date, tags: tags, application: application, kind: kind, content: content)
@@ -269,7 +269,7 @@ extension NostrTests {
 			for i in 0..<MemoryLayout<NOSTR_tag_name>.size {
 				tagBuf[i] = 0xFF
 			}
-			let badTag = EventTag(RAW_decode: tagBuf, count: tagBuf.count)!
+			let badTag = tagBuf.withUnsafeBytes { EventTag(RAW_decode: UnsafeRawBufferPointer($0))! }
 			#expect(badTag.name == nil)
 			let badEvent = try UnsignedEvent(publicKey: publicKey, date: date, tags: [badTag], application: application, kind: kind, content: content)
 			#expect(!badEvent.isValid())
@@ -283,7 +283,7 @@ extension NostrTests {
 			// error (re-thrown as its typed `E`), NOT crash the process via `try!`.
 			let tag = StringTag(name: "e", value: "val1")!
 			do {
-				try tag.RAW_access { (_: UnsafeBufferPointer<UInt8>) throws -> Void in
+				try tag.RAW_access_immutable { (_: UnsafeBufferPointer<UInt8>) throws -> Void in
 					throw NOSTR_event_error.eventValidationFailed
 				}
 				Issue.record("expected a thrown error from RAW_access body")
@@ -299,7 +299,7 @@ extension NostrTests {
 			// error rather than crashing via `try!`.
 			var tag = StringTag(name: "e", value: "val1")!
 			do {
-				try tag.RAW_access_mutating { (_: UnsafeMutableBufferPointer<UInt8>) throws -> Void in
+				try tag.RAW_access_mutable { (_: UnsafeMutableBufferPointer<UInt8>) throws -> Void in
 					throw NOSTR_event_error.eventValidationFailed
 				}
 				Issue.record("expected a thrown error from RAW_access_mutating body")
@@ -351,7 +351,7 @@ extension NostrTests {
 		@Test func emptyNameDecodesToEmptyString() {
 			// An all-NUL 8-byte field represents an empty name.
 			let zeroes = [UInt8](repeating: 0, count: MemoryLayout<NOSTR_tag_name>.size)
-			let name = zeroes.withUnsafeBytes { NOSTR_tag_name(RAW_staticbuff: $0.baseAddress!) }
+			let name = zeroes.withUnsafeBytes { NOSTR_tag_name(RAW_staticbuff: $0.load(as: NOSTR_tag_name.RAW_fixed_type.self)) }
 			#expect(name.string == "")
 		}
 
@@ -367,7 +367,7 @@ extension NostrTests {
 			let tagBuffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: tagLen)
 			defer { tagBuffer.deallocate() }
 			_ = generic.RAW_encode(dest: tagBuffer.baseAddress!)
-			let decodedEventTag = EventTag(RAW_decode: tagBuffer.baseAddress!, count: tagLen)!
+			let decodedEventTag = EventTag(RAW_decode: UnsafeRawBufferPointer(start: tagBuffer.baseAddress!, count: tagLen))!
 
 			// Byte-level equality: different concrete types, same bytes ⇒ equal.
 			#expect(generic.isEqual(to: decodedEventTag))
@@ -408,7 +408,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: reqLen)
 			defer { buffer.deallocate() }
 			_ = reqMessage.RAW_encode(dest:buffer.baseAddress!)
-			let decodedReqMessage = NOSTR_message_REQ(RAW_decode: buffer.baseAddress!, count: reqLen)!
+			let decodedReqMessage = NOSTR_message_REQ(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: reqLen))!
 			#expect(decodedReqMessage.subscriptionID == reqMessage.subscriptionID)
 			#expect(decodedReqMessage.type == reqMessage.type)
 		}
@@ -426,7 +426,7 @@ extension NostrTests {
 			_ = reqMessage.RAW_encode(dest: buffer.baseAddress!)
 
 			for cut in 0..<reqLen {
-				_ = NOSTR_message_REQ(RAW_decode: buffer.baseAddress!, count: cut)
+				_ = NOSTR_message_REQ(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
 		}
 
@@ -439,7 +439,7 @@ extension NostrTests {
 			defer { buffer.deallocate() }
 			_ = message.RAW_encode(dest: buffer.baseAddress!)
 			for cut in 0..<messageLen {
-				_ = NOSTR_message_EOSE(RAW_decode: buffer.baseAddress!, count: cut)
+				_ = NOSTR_message_EOSE(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
 		}
 
@@ -450,7 +450,7 @@ extension NostrTests {
 			defer { buffer.deallocate() }
 			_ = message.RAW_encode(dest: buffer.baseAddress!)
 			for cut in 0..<messageLen {
-				_ = NOSTR_message_CLOSE(RAW_decode: buffer.baseAddress!, count: cut)
+				_ = NOSTR_message_CLOSE(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
 		}
 
@@ -461,18 +461,18 @@ extension NostrTests {
 			defer { buffer.deallocate() }
 			_ = message.RAW_encode(dest: buffer.baseAddress!)
 			for cut in 0..<messageLen {
-				_ = NOSTR_message_NOTICE(RAW_decode: buffer.baseAddress!, count: cut)
+				_ = NOSTR_message_NOTICE(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
 		}
 
 		@Test func truncatedOKDecodeRejectsOutOfBounds() throws {
-			let message = NOSTR_message_OK(eventID: try generateSecureRandomBytes(as: NOSTR_id.self), status: true)
+			let message = NOSTR_message_OK(eventID: try generateSecureRandomBytes(count: 32).withUnsafeBytes { NOSTR_id(RAW_decode: UnsafeRawBufferPointer($0))! }, status: true)
 			var messageLen = 0; message.RAW_encode(count: &messageLen)
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: messageLen)
 			defer { buffer.deallocate() }
 			_ = message.RAW_encode(dest: buffer.baseAddress!)
 			for cut in 0..<messageLen {
-				_ = NOSTR_message_OK(RAW_decode: buffer.baseAddress!, count: cut)
+				_ = NOSTR_message_OK(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
 		}
 
@@ -486,7 +486,7 @@ extension NostrTests {
 			defer { buffer.deallocate() }
 			_ = message.RAW_encode(dest: buffer.baseAddress!)
 			for cut in 0..<messageLen {
-				_ = NOSTR_message_EVENT<UnsignedEvent<StringContent>>(RAW_decode: buffer.baseAddress!, count: cut)
+				_ = NOSTR_message_EVENT<UnsignedEvent<StringContent>>(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
 		}
 		
@@ -496,7 +496,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eoseLen)
 			defer { buffer.deallocate() }
 			_ = eoseMessage.RAW_encode(dest:buffer.baseAddress!)
-			let decodedEoseMessage = NOSTR_message_EOSE(RAW_decode: buffer.baseAddress!, count: eoseLen)!
+			let decodedEoseMessage = NOSTR_message_EOSE(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: eoseLen))!
 			#expect(decodedEoseMessage.subscriptionID == eoseMessage.subscriptionID)
 			#expect(decodedEoseMessage.type == eoseMessage.type)
 		}
@@ -507,7 +507,7 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: closeLen)
 			defer { buffer.deallocate() }
 			_ = closeMessage.RAW_encode(dest:buffer.baseAddress!)
-			let decodedCloseMessage = NOSTR_message_CLOSE(RAW_decode: buffer.baseAddress!, count: closeLen)!
+			let decodedCloseMessage = NOSTR_message_CLOSE(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: closeLen))!
 			#expect(decodedCloseMessage.subscriptionID == closeMessage.subscriptionID)
 			#expect(decodedCloseMessage.type == closeMessage.type)
 		}
@@ -518,19 +518,19 @@ extension NostrTests {
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: noticeLen)
 			defer { buffer.deallocate() }
 			_ = noticeMessage.RAW_encode(dest:buffer.baseAddress!)
-			let decodedNoticeMessage = NOSTR_message_NOTICE(RAW_decode: buffer.baseAddress!, count: noticeLen)!
+			let decodedNoticeMessage = NOSTR_message_NOTICE(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: noticeLen))!
 			#expect(decodedNoticeMessage.noticeText == noticeMessage.noticeText)
 			#expect(decodedNoticeMessage.type == noticeMessage.type)
 		}
 		
 		@Test func encodeDecodeOKMessage() throws {
-			let eventID = try generateSecureRandomBytes(as: NOSTR_id.self)
+			let eventID = try generateSecureRandomBytes(count: 32).withUnsafeBytes { NOSTR_id(RAW_decode: UnsafeRawBufferPointer($0))! }
 			let okMessage = NOSTR_message_OK(eventID:eventID, status:true)
 			var okLen = 0; okMessage.RAW_encode(count: &okLen)
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: okLen)
 			defer { buffer.deallocate() }
 			_ = okMessage.RAW_encode(dest:buffer.baseAddress!)
-			let decodedOkMessage = NOSTR_message_OK(RAW_decode: buffer.baseAddress!, count: okLen)!
+			let decodedOkMessage = NOSTR_message_OK(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: okLen))!
 			#expect(decodedOkMessage.type == okMessage.type)
 		}
 	}
@@ -544,13 +544,13 @@ extension NostrTests {
 	struct EncodedScalarTests {
 		// Encodes `value`, decodes it back, and asserts the round trip is lossless
 		// (fix #3: direct coverage for the Encoded.* content scalars).
-		private func assertRoundTrip<T: RAW_convertible & Equatable>(_ value: T) throws -> T {
+		private func assertRoundTrip<T: RAW_decodable & RAW_encodable & Equatable>(_ value: T) throws -> T {
 			var len = 0
 			value.RAW_encode(count: &len)
 			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: len)
 			defer { buffer.deallocate() }
 			_ = value.RAW_encode(dest: buffer.baseAddress!)
-			let decoded = T(RAW_decode: buffer.baseAddress!, count: len)
+			let decoded = T(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: len))
 			#expect(decoded == value)
 			return decoded!
 		}

@@ -1,13 +1,13 @@
 import RAW
 
 @attached(member, names: arbitrary)
-@attached(extension, conformances: RAW_convertible, names: arbitrary)
-/// Implements `RAW_convertible` in an extension for the attached struct.
+@attached(extension, conformances: RAW_decodable, RAW_encodable, names: arbitrary)
+/// Implements `RAW_decodable` and `RAW_encodable` in an extension for the attached struct.
 public macro NostrContent() = #externalMacro(module: "ContentMacros", type: "NostrContent")
  
 @attached(member, names: arbitrary)
-@attached(extension, conformances: RAW_convertible, names: arbitrary)
-/// Implements `RAW_convertible` in an extension for the tag.
+@attached(extension, conformances: RAW_decodable, RAW_encodable, names: arbitrary)
+/// Implements `RAW_decodable` and `RAW_encodable` in an extension for the tag.
 ///
 /// - Parameters:
 ///   - name: When provided, the macro generates the tag's `indexField` stored

@@ -1,13 +1,13 @@
 {
-  "originHash" : "06c7aa867662eff318889e2c3bd7a6f647b7e3ae3a9bb19ef6c7ab5d53042710",
+  "originHash" : "bb63f3c87fc172f91723a9f9f0493aae5960fb23c518cfc8855d326c48034f2b",
   "pins" : [
     {
       "identity" : "rawdog",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tannerdsilva/rawdog.git",
       "state" : {
-        "revision" : "378e87e49d2cf95c92882b1bcbe21252c5c1d0a6",
-        "version" : "21.0.0"
+        "revision" : "99afc54d3de7015b2dde3886727c9d82f9c32998",
+        "version" : "22.0.0"
       }
     },
     {
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "bc386b95f2a16ccd0150a8235e7c69eab2b866ca",
-        "version" : "1.8.0"
+        "revision" : "3ffafb9722d5d918c614feb496c8789a3b59d222",
+        "version" : "1.15.0"
       }
     },
     {
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-syntax.git",
       "state" : {
-        "revision" : "4799286537280063c85a32f09884cfbca301b1a1",
-        "version" : "602.0.0"
+        "revision" : "79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1",
+        "version" : "603.0.2"
       }
     }
   ],

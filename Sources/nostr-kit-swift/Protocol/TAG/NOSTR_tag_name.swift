@@ -6,7 +6,7 @@ import RAW
 /// The name is stored as a fixed-width, NUL-padded 8-byte field, so only names of
 /// up to 8 UTF-8 bytes can be represented.
 @RAW_staticbuff(bytes:8)
-public struct NOSTR_tag_name:Sendable, Hashable, Comparable, RAW_convertible, RAW_accessible {
+public struct NOSTR_tag_name:Sendable, Hashable, Comparable {
 	/// The fixed width (in bytes) of the tag-name wire field.
 	public static let maxNameBytes: Int = 8
 
@@ -16,7 +16,7 @@ public struct NOSTR_tag_name:Sendable, Hashable, Comparable, RAW_convertible, RA
 	/// only the bytes up to the first NUL (the padding), so trailing zero bytes are
 	/// never included. Returns `nil` if the stored bytes are not valid UTF-8.
 	public var string: String? {
-		self.RAW_access { (ptr: UnsafeBufferPointer<UInt8>) -> String? in
+		self.RAW_access_immutable { (ptr: UnsafeBufferPointer<UInt8>) -> String? in
 			guard let base = ptr.baseAddress else { return nil }
 			let count = ptr.count
 			var len = 0
@@ -47,7 +47,7 @@ extension NOSTR_tag_name {
 			bytes[index] = byte
 		}
 		self = bytes.withUnsafeBytes { (buf: UnsafeRawBufferPointer) in
-			NOSTR_tag_name(RAW_staticbuff: buf.baseAddress!)
+			NOSTR_tag_name(RAW_staticbuff: buf.load(as: NOSTR_tag_name.RAW_fixed_type.self))
 		}
 	}
 }

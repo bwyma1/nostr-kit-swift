@@ -38,7 +38,7 @@ fileprivate func rawDecodeIdentifierSyntax(identifier:String, type: String, laye
 		   let \(identifier)Length = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 		   dataCount -= MemoryLayout<Bytes4>.size
 		   guard dataCount >= \(identifier)Length else { return nil }
-		   let \(identifier)\(layer) = \(type)(RAW_decode: inputPtr, count: \(identifier)Length)
+		   guard let \(identifier)\(layer) = \(type)(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: \(identifier)Length)) else { return nil }
 		   inputPtr = inputPtr.advanced(by: \(identifier)Length)
 		   dataCount -= \(identifier)Length\n
 		   """
@@ -49,7 +49,7 @@ fileprivate func rawDecodeIdentifierSyntax(identifier:String, type: String, laye
 			let \(identifier)Length = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
 			guard dataCount >= \(identifier)Length else { return nil }
-			guard let \(identifier)\(layer) = \(type)(RAW_decode: inputPtr, count: \(identifier)Length) else { return nil }
+			guard let \(identifier)\(layer) = \(type)(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: \(identifier)Length)) else { return nil }
 			inputPtr = inputPtr.advanced(by: \(identifier)Length)
 			dataCount -= \(identifier)Length\n
 			"""
@@ -67,7 +67,7 @@ fileprivate func rawDecodeIdentifierSyntax(identifier:String, type: String, laye
 			let \(identifier)Length = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
 			guard dataCount >= \(identifier)Length else { return nil }
-			guard let \(identifier)\(layer) = \(type)(RAW_decode: inputPtr, count: \(identifier)Length) else { return nil }
+			guard let \(identifier)\(layer) = \(type)(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: \(identifier)Length)) else { return nil }
 			inputPtr = inputPtr.advanced(by: \(identifier)Length)
 			dataCount -= \(identifier)Length\n
 			"""
@@ -266,7 +266,7 @@ fileprivate func resolveEncodeTypeAnnotation(type: TypeSyntax, identifier: Strin
 }
 
 /// The macro adds the conformance and conformance functions
-/// for `RAW_convertible` as an extension of the struct.
+/// for `RAW_decodable` and `RAW_encodable` as an extension of the struct.
 public struct NostrContent: ExtensionMacro {
 	public static func expansion(
 		of node: SwiftSyntax.AttributeSyntax,
@@ -276,9 +276,9 @@ public struct NostrContent: ExtensionMacro {
 		in context: some SwiftSyntaxMacros.MacroExpansionContext)
 	throws -> [SwiftSyntax.ExtensionDeclSyntax] {
 		guard declaration.inheritanceClause?.inheritedTypes.contains(where: {
-			$0.type.trimmedDescription == "RAW_convertible"
+			$0.type.trimmedDescription == "RAW_decodable"
 		}) == false else  {
-			throw NostrContentError.doubleConformace("RAW_convertible")
+			throw NostrContentError.doubleConformace("RAW_decodable")
 		}
 		
 		guard let structDecl = declaration.as(StructDeclSyntax.self) else {
@@ -289,11 +289,12 @@ public struct NostrContent: ExtensionMacro {
 
 		var rawDecodeInit =
 			"""
-			public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
-			var inputPtr = inputPtr
-			var dataCount = count\n
+			public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+			guard let baseAddress = buffer.baseAddress else { return nil }
+			var inputPtr = baseAddress
+			var dataCount = buffer.count\n
 			"""
-		var rawEncodeCount = "public func RAW_encode(count: inout RAW.size_t) {\n"
+		var rawEncodeCount = "public func RAW_encode(count: inout Int) {\n"
 		var rawEncode =
 			"""
 			public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
@@ -337,7 +338,7 @@ public struct NostrContent: ExtensionMacro {
 		return [
 			try ExtensionDeclSyntax(
 				"""
-				extension \(raw: structDecl.name.text): RAW_convertible {
+				extension \(raw: structDecl.name.text): RAW_decodable, RAW_encodable {
 					\(raw: rawDecodeInit)
 					\(raw: rawEncodeCount)
 					\(raw: rawEncode)

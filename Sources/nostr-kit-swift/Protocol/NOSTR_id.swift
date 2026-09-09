@@ -6,4 +6,4 @@ import RAW_dh25519
 /// An event's `id` is the SHA-256 hash of its serialized fields. It is used to
 /// index references to other events and to prevent accidental duplicates.
 @RAW_staticbuff(bytes: 32)
-public struct NOSTR_id:Sendable, Hashable, Comparable, RAW_convertible, RAW_accessible, NOSTR_tag_value {}
+public struct NOSTR_id:Sendable, Hashable, Comparable, NOSTR_tag_value {}

@@ -53,11 +53,14 @@ extension NostrTests {
 				        self.content = Encoded.Bool(contentNative)
 				    }
 				}
-
-				extension SomeContent: RAW_convertible {
-					public init?(RAW_decode inputPtr: consuming UnsafeRawPointer, count: RAW.size_t) {
-					    var inputPtr = inputPtr
-					    var dataCount = count
+				
+				extension SomeContent: RAW_decodable, RAW_encodable {
+					public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+					    guard let baseAddress = buffer.baseAddress else {
+					        return nil
+					    }
+					    var inputPtr = baseAddress
+					    var dataCount = buffer.count
 					    guard dataCount >= MemoryLayout<Encoded.Bool>.size else {
 					        return nil
 					    }
@@ -68,7 +71,7 @@ extension NostrTests {
 					        return nil
 					    }
 					}
-					public func RAW_encode(count: inout RAW.size_t) {
+					public func RAW_encode(count: inout Int) {
 					    content.RAW_encode(count: &count)
 					}
 					public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
@@ -98,7 +101,7 @@ extension NostrTests {
 			let bufferA = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLen)
 			defer { bufferA.deallocate() }
 			_ = content.RAW_encode(dest:bufferA.baseAddress!)
-			var decodedContent = BasicContent(RAW_decode: bufferA.baseAddress!, count: contentLen)!
+			var decodedContent = BasicContent(RAW_decode: UnsafeRawBufferPointer(start: bufferA.baseAddress!, count: contentLen))!
 			#expect(content == decodedContent)
 			
 			content = BasicContent(variableA: Encoded.Bool(false), variableB: nil)
@@ -106,7 +109,7 @@ extension NostrTests {
 			let bufferB = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLen)
 			defer { bufferB.deallocate() }
 			_ = content.RAW_encode(dest:bufferB.baseAddress!)
-			decodedContent = BasicContent(RAW_decode: bufferB.baseAddress!, count: contentLen)!
+			decodedContent = BasicContent(RAW_decode: UnsafeRawBufferPointer(start: bufferB.baseAddress!, count: contentLen))!
 			#expect(content == decodedContent)
 		}
 		
@@ -126,7 +129,7 @@ extension NostrTests {
 			let bufferA = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLen)
 			defer { bufferA.deallocate() }
 			_ = content.RAW_encode(dest:bufferA.baseAddress!)
-			let decodedContent = ComplexContent(RAW_decode: bufferA.baseAddress!, count: contentLen)!
+			let decodedContent = ComplexContent(RAW_decode: UnsafeRawBufferPointer(start: bufferA.baseAddress!, count: contentLen))!
 			#expect(content == decodedContent)
 		}
 		
@@ -143,7 +146,7 @@ extension NostrTests {
 			defer { basicBuffer.deallocate() }
 			_ = basic.RAW_encode(dest: basicBuffer.baseAddress!)
 			for cut in 0..<basicLen {
-				_ = BasicContent(RAW_decode: basicBuffer.baseAddress!, count: cut)
+				_ = BasicContent(RAW_decode: UnsafeRawBufferPointer(start: basicBuffer.baseAddress!, count: cut))
 			}
 
 			let dictContent: [Encoded.String: [Encoded.UInt16?]]? = [
@@ -155,18 +158,18 @@ extension NostrTests {
 			defer { complexBuffer.deallocate() }
 			_ = complex.RAW_encode(dest: complexBuffer.baseAddress!)
 			for cut in 0..<complexLen {
-				_ = ComplexContent(RAW_decode: complexBuffer.baseAddress!, count: cut)
+				_ = ComplexContent(RAW_decode: UnsafeRawBufferPointer(start: complexBuffer.baseAddress!, count: cut))
 			}
 		}
 		
 		@Test func encodeDecodeTag() throws {
-			let nostrId = try generateSecureRandomBytes(as: NOSTR_id.self)
+			let nostrId = try generateSecureRandomBytes(count: 32).withUnsafeBytes { NOSTR_id(RAW_decode: UnsafeRawBufferPointer($0))! }
 			let content = try DTag(value: nostrId)
 			var contentLen: Int = 0; content.RAW_encode(count: &contentLen)
 			let bufferA = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLen)
 			defer { bufferA.deallocate() }
 			_ = content.RAW_encode(dest:bufferA.baseAddress!)
-			let decodedContent = DTag(RAW_decode: bufferA.baseAddress!, count: contentLen)!
+			let decodedContent = DTag(RAW_decode: UnsafeRawBufferPointer(start: bufferA.baseAddress!, count: contentLen))!
 			#expect(content == decodedContent)
 		}
 
@@ -195,7 +198,7 @@ extension NostrTests {
 				macroSpecs: testMacros
 			) { failure in
 				Issue.record(
-					"\\(failure.message)",
+					"\(failure.message)",
 					sourceLocation: .init(
 						fileID: failure.location.fileID,
 						filePath: failure.location.filePath,
@@ -231,7 +234,7 @@ extension NostrTests {
 				macroSpecs: testMacros
 			) { failure in
 				Issue.record(
-					"\\(failure.message)",
+					"\(failure.message)",
 					sourceLocation: .init(
 						fileID: failure.location.fileID,
 						filePath: failure.location.filePath,
@@ -251,29 +254,33 @@ extension NostrTests {
 				""",
 				expandedSource: """
 				struct DTag: Sendable, Hashable, Equatable, NOSTR_tag {
-
+				
 				    public var indexField = NOSTR_tag_name(string: "d")!
-
+				
 				    public var value: NOSTR_id
-
+				
 				    public init(value: NOSTR_id) {
 				        self.value = value
 				    }
 				}
-
-				extension DTag: RAW_convertible {
-					public init?(RAW_decode inputPtr: consuming UnsafeRawPointer, count: RAW.size_t) {
-					var dataCount = count
+				
+				extension DTag: RAW_decodable, RAW_encodable {
+					public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+					guard let baseAddress = buffer.baseAddress else {
+					    return nil
+					}
+					var inputPtr = baseAddress
+					var dataCount = buffer.count
 					guard dataCount >= MemoryLayout<NOSTR_tag_name>.size else {
 					    return nil
 					}
-
+				
 					self.indexField = NOSTR_tag_name(RAW_staticbuff_seeking: &inputPtr)
 					dataCount -= MemoryLayout<NOSTR_tag_name>.size
 					guard indexField == NOSTR_tag_name(string: "d")! else {
 					    return nil
 					}
-
+				
 					guard dataCount >= MemoryLayout<Bytes4>.size else {
 					    return nil
 					}
@@ -291,31 +298,35 @@ extension NostrTests {
 					}
 					self.value = value
 					}
-					public func RAW_encode(count: inout RAW.size_t) {
+					public func RAW_encode(count: inout Int) {
 					count += MemoryLayout<NOSTR_tag_name>.size + MemoryLayout<Bytes4>.size
 					value.RAW_encode(count: &count)
 					}
 					public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
 					var dest = indexField.RAW_encode(dest: dest)
-
+				
 					var tagValueLength = 0;
 					value.RAW_encode(count: &tagValueLength)
 					let tagValueLengthBytes = Bytes4(RAW_native: UInt32(tagValueLength))
 					dest = tagValueLengthBytes.RAW_encode(dest: dest)
 					dest = value.RAW_encode(dest: dest)
-
+				
 					return dest
 					}
-
-					private static func _decodeTagValue<T: RAW_convertible>(_ type: T.Type, _ ptr: UnsafeRawPointer, _ len: RAW.size_t) -> T? {
-						return T(RAW_decode: ptr, count: len)
+					@discardableResult
+					public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+					return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+					}
+				
+					private static func _decodeTagValue<T: RAW_decodable & RAW_encodable>(_ type: T.Type, _ ptr: UnsafeRawPointer, _ len: Int) -> T? {
+						return T(RAW_decode: UnsafeRawBufferPointer(start: ptr, count: len))
 					}
 				}
 				""",
 				macroSpecs: testMacros
 			) { failure in
 				Issue.record(
-					"\\(failure.message)",
+					"\(failure.message)",
 					sourceLocation: .init(
 						fileID: failure.location.fileID,
 						filePath: failure.location.filePath,
@@ -337,23 +348,27 @@ extension NostrTests {
 				expandedSource: """
 				struct ERef: Sendable, Hashable, Equatable, NOSTR_tag {
 					var value: NOSTR_id
-
+				
 				    public var indexField = NOSTR_tag_name(string: "e")!
 				}
-
-				extension ERef: RAW_convertible {
-					public init?(RAW_decode inputPtr: consuming UnsafeRawPointer, count: RAW.size_t) {
-					var dataCount = count
+				
+				extension ERef: RAW_decodable, RAW_encodable {
+					public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+					guard let baseAddress = buffer.baseAddress else {
+					    return nil
+					}
+					var inputPtr = baseAddress
+					var dataCount = buffer.count
 					guard dataCount >= MemoryLayout<NOSTR_tag_name>.size else {
 					    return nil
 					}
-
+				
 					self.indexField = NOSTR_tag_name(RAW_staticbuff_seeking: &inputPtr)
 					dataCount -= MemoryLayout<NOSTR_tag_name>.size
 					guard indexField == NOSTR_tag_name(string: "e")! else {
 					    return nil
 					}
-
+				
 					guard dataCount >= MemoryLayout<Bytes4>.size else {
 					    return nil
 					}
@@ -371,31 +386,35 @@ extension NostrTests {
 					}
 					self.value = value
 					}
-					public func RAW_encode(count: inout RAW.size_t) {
+					public func RAW_encode(count: inout Int) {
 					count += MemoryLayout<NOSTR_tag_name>.size + MemoryLayout<Bytes4>.size
 					value.RAW_encode(count: &count)
 					}
 					public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
 					var dest = indexField.RAW_encode(dest: dest)
-
+				
 					var tagValueLength = 0;
 					value.RAW_encode(count: &tagValueLength)
 					let tagValueLengthBytes = Bytes4(RAW_native: UInt32(tagValueLength))
 					dest = tagValueLengthBytes.RAW_encode(dest: dest)
 					dest = value.RAW_encode(dest: dest)
-
+				
 					return dest
 					}
-
-					private static func _decodeTagValue<T: RAW_convertible>(_ type: T.Type, _ ptr: UnsafeRawPointer, _ len: RAW.size_t) -> T? {
-						return T(RAW_decode: ptr, count: len)
+					@discardableResult
+					public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+					return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+					}
+				
+					private static func _decodeTagValue<T: RAW_decodable & RAW_encodable>(_ type: T.Type, _ ptr: UnsafeRawPointer, _ len: Int) -> T? {
+						return T(RAW_decode: UnsafeRawBufferPointer(start: ptr, count: len))
 					}
 				}
 				""",
 				macroSpecs: testMacros
 			) { failure in
 				Issue.record(
-					"\\(failure.message)",
+					"\(failure.message)",
 					sourceLocation: .init(
 						fileID: failure.location.fileID,
 						filePath: failure.location.filePath,
@@ -420,20 +439,24 @@ extension NostrTests {
 					var indexField = NOSTR_tag_name(string: "e")!
 					var value: NOSTR_id
 				}
-
-				extension ERef: RAW_convertible {
-					public init?(RAW_decode inputPtr: consuming UnsafeRawPointer, count: RAW.size_t) {
-					var dataCount = count
+				
+				extension ERef: RAW_decodable, RAW_encodable {
+					public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+					guard let baseAddress = buffer.baseAddress else {
+					    return nil
+					}
+					var inputPtr = baseAddress
+					var dataCount = buffer.count
 					guard dataCount >= MemoryLayout<NOSTR_tag_name>.size else {
 					    return nil
 					}
-
+				
 					self.indexField = NOSTR_tag_name(RAW_staticbuff_seeking: &inputPtr)
 					dataCount -= MemoryLayout<NOSTR_tag_name>.size
 					guard indexField == NOSTR_tag_name(string: "e")! else {
 					    return nil
 					}
-
+				
 					guard dataCount >= MemoryLayout<Bytes4>.size else {
 					    return nil
 					}
@@ -451,31 +474,35 @@ extension NostrTests {
 					}
 					self.value = value
 					}
-					public func RAW_encode(count: inout RAW.size_t) {
+					public func RAW_encode(count: inout Int) {
 					count += MemoryLayout<NOSTR_tag_name>.size + MemoryLayout<Bytes4>.size
 					value.RAW_encode(count: &count)
 					}
 					public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
 					var dest = indexField.RAW_encode(dest: dest)
-
+				
 					var tagValueLength = 0;
 					value.RAW_encode(count: &tagValueLength)
 					let tagValueLengthBytes = Bytes4(RAW_native: UInt32(tagValueLength))
 					dest = tagValueLengthBytes.RAW_encode(dest: dest)
 					dest = value.RAW_encode(dest: dest)
-
+				
 					return dest
 					}
-
-					private static func _decodeTagValue<T: RAW_convertible>(_ type: T.Type, _ ptr: UnsafeRawPointer, _ len: RAW.size_t) -> T? {
-						return T(RAW_decode: ptr, count: len)
+					@discardableResult
+					public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+					return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+					}
+				
+					private static func _decodeTagValue<T: RAW_decodable & RAW_encodable>(_ type: T.Type, _ ptr: UnsafeRawPointer, _ len: Int) -> T? {
+						return T(RAW_decode: UnsafeRawBufferPointer(start: ptr, count: len))
 					}
 				}
 				""",
 				macroSpecs: testMacros
 			) { failure in
 				Issue.record(
-					"\\(failure.message)",
+					"\(failure.message)",
 					sourceLocation: .init(
 						fileID: failure.location.fileID,
 						filePath: failure.location.filePath,

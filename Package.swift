@@ -11,8 +11,8 @@ let package = Package(
         .library(name: "nostr-kit-swift", targets: ["nostr-kit-swift"]),
     ],
 	dependencies: [
-		.package(url:"https://github.com/apple/swift-syntax.git", "602.0.0"..<"603.0.0"),
-		.package(url:"https://github.com/tannerdsilva/rawdog.git", "21.0.0"..<"22.0.0"),
+		.package(url:"https://github.com/apple/swift-syntax.git", "603.0.0"..<"604.0.0"),
+		.package(url:"https://github.com/tannerdsilva/rawdog.git", "22.0.0"..<"23.0.0"),
 	],
     targets: [
 		.macro(

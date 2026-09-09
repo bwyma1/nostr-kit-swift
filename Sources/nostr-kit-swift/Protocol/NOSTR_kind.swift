@@ -14,7 +14,7 @@ import RAW
 /// - Kinds 30000–39999: Parameterized replaceable events, unique per `(publicKey, kind, d-tag value)`.
 @RAW_staticbuff(bytes: 4)
 @RAW_staticbuff_fixedwidthinteger_type<UInt32>(bigEndian: true)
-public struct NOSTR_kind: Sendable, Hashable, Comparable, RAW_convertible {
+public struct NOSTR_kind: Sendable, Hashable, Comparable {
 	/// Creates a kind from a `UInt8`.
 	public init(_ kind: UInt8) {
 		self = NOSTR_kind(RAW_native: UInt32(kind))

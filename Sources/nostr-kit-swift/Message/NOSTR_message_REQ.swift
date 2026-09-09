@@ -6,7 +6,7 @@ import RAW_dh25519
 /// The server stores the REQ for the subscription and sends over the filtered data.
 /// The server continues to send filtered data until the REQ is replaced with a new
 /// REQ filter or the server receives a CLOSE message.
-public struct NOSTR_message_REQ:Sendable, RAW_convertible {
+public struct NOSTR_message_REQ:Sendable, RAW_decodable, RAW_encodable {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x100)
 	
@@ -30,12 +30,16 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 		self.fetchHistory = Encoded.Bool(fetchHistory)
 	}
 	
-	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+	public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+		guard let baseAddress = buffer.baseAddress else { return nil }
+		var inputPtr = baseAddress
+		let count = buffer.count
 		guard count >= MemoryLayout<Bytes4>.size else { return nil }
 		let subscriptionIDLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 		var dataCount = count - MemoryLayout<Bytes4>.size
 		guard dataCount >= subscriptionIDLength else { return nil }
-		self.subscriptionID = NOSTR_subscription_ID(RAW_decode: inputPtr, count: subscriptionIDLength)
+		guard let subscriptionID = NOSTR_subscription_ID(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: subscriptionIDLength)) else { return nil }
+		self.subscriptionID = subscriptionID
 		inputPtr = inputPtr.advanced(by: subscriptionIDLength)
 		dataCount -= subscriptionIDLength
 		
@@ -54,7 +58,7 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 			let filterLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
 			guard dataCount >= filterLength else { return nil }
-			guard let filter = Filter(RAW_decode: inputPtr, count: filterLength) else { return nil }
+			guard let filter = Filter(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: filterLength)) else { return nil }
 			inputPtr = inputPtr.advanced(by: filterLength)
 			dataCount -= filterLength
 			filters.append(filter)
@@ -72,7 +76,7 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 		guard dataCount == 0 else { return nil }
 	}
 	
-	public func RAW_encode(count: inout RAW.size_t) {
+	public func RAW_encode(count: inout Int) {
 		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<PublicKey>.size + MemoryLayout<Bytes1>.size + MemoryLayout<Bytes4>.size * (filters.count + 1) + MemoryLayout<Encoded.Bool>.size
 		subscriptionID.RAW_encode(count: &count)
 		for filter in filters {
@@ -99,5 +103,9 @@ public struct NOSTR_message_REQ:Sendable, RAW_convertible {
 		dest = user.RAW_encode(dest: dest)
 		dest = fetchHistory.RAW_encode(dest: dest)
 		return dest
+	}
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
 	}
 }

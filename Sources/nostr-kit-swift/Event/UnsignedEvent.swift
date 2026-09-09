@@ -28,7 +28,7 @@ public struct NOSTR_tags: Sendable, Hashable {
 
 	public func hash(into hasher: inout Hasher) {
 		for item in array {
-			item.RAW_access { buffer in
+			item.RAW_access_immutable { buffer in
 				hasher.combine(bytes: UnsafeRawBufferPointer(buffer))
 			}
 		}
@@ -73,7 +73,10 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 		self.content = content
 	}
 	
-	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+	public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+	guard let baseAddress = buffer.baseAddress else { return nil }
+	var inputPtr = baseAddress
+	let count = buffer.count
 		guard MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<Bytes2>.size <= count else { return nil }
 		var dataCount = count - (MemoryLayout<NOSTR_id>.size + MemoryLayout<PublicKey>.size + MemoryLayout<NOSTR_date>.size + MemoryLayout<Bytes2>.size)
 		id = NOSTR_id(RAW_staticbuff_seeking: &inputPtr)
@@ -85,7 +88,7 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
 			let tagLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
-			guard let tag = EventTag(RAW_decode: inputPtr, count: tagLength) else { return nil }
+			guard let tag = EventTag(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: tagLength)) else { return nil }
 			inputPtr = inputPtr.advanced(by: tagLength)
 			dataCount -= tagLength
 			tagArray.append(tag)
@@ -101,11 +104,11 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 		dataCount -= MemoryLayout<NOSTR_kind>.size
 		
 		guard dataCount >= 0 else { return nil }
-		guard let content = Content(RAW_decode: inputPtr, count: dataCount) else { return nil }
+		guard let content = Content(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: dataCount)) else { return nil }
 		self.content = content
 	}
 	
-	public func RAW_encode(count: inout RAW.size_t) {
+	public func RAW_encode(count: inout Int) {
 		for tag in tags.array {
 			tag.RAW_encode(count: &count)
 			count += MemoryLayout<Bytes4>.size
@@ -131,4 +134,10 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 		dest = content.RAW_encode(dest: dest)
 		return dest
 	}
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+	}
+
+
 }

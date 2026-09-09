@@ -19,7 +19,7 @@ public struct NOSTR_filter_limit:Sendable { }
 /// (logical OR).
 ///
 /// Limits only apply to the initial query and are ignored for ongoing subscriptions.
-public struct Filter:Sendable, RAW_convertible {
+public struct Filter:Sendable, RAW_decodable, RAW_encodable {
 	
 	/// The event ids to match.
 	public var ids: [NOSTR_id]
@@ -69,7 +69,10 @@ public struct Filter:Sendable, RAW_convertible {
 		self.limit = limit
 	}
 	
-	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+	public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+	guard let baseAddress = buffer.baseAddress else { return nil }
+	var inputPtr = baseAddress
+	let count = buffer.count
 		var dataCount = count
 
 		// ids
@@ -130,7 +133,7 @@ public struct Filter:Sendable, RAW_convertible {
 			let tagLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
 			guard dataCount >= tagLength else { return nil }
-			guard let tag = EventTag(RAW_decode: inputPtr, count: tagLength) else { return nil }
+			guard let tag = EventTag(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: tagLength)) else { return nil }
 			inputPtr = inputPtr.advanced(by: tagLength)
 			dataCount -= tagLength
 			tags.append(tag)
@@ -167,7 +170,7 @@ public struct Filter:Sendable, RAW_convertible {
 		guard dataCount == 0 else { return nil }
 	}
 	
-	public func RAW_encode(count: inout RAW.size_t) {
+	public func RAW_encode(count: inout Int) {
 		// ids | author | application | kind | tag | since | until | limit
 		count += MemoryLayout<Bytes1>.size * 8
 		for id in ids {
@@ -257,6 +260,12 @@ public struct Filter:Sendable, RAW_convertible {
 		
 		return dest
 	}
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+	}
+
+
 }
 
 

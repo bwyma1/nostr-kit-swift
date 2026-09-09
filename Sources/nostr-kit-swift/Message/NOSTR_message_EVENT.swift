@@ -9,7 +9,7 @@ import RAW
 /// Server to client:
 /// - A message sent by the server to the client for requested events. The
 ///   subscription ID represents which subscription the event belongs to.
-public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, RAW_convertible {
+public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, RAW_decodable, RAW_encodable {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x101)
 	
@@ -31,12 +31,16 @@ public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, 
 		self.event = event
 	}
 	
-	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+	public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+		guard let baseAddress = buffer.baseAddress else { return nil }
+		var inputPtr = baseAddress
+		let count = buffer.count
 		guard count >= MemoryLayout<Bytes4>.size else { return nil }
 		let subscriptionIDLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 		var dataCount = count - MemoryLayout<Bytes4>.size
 		guard dataCount >= subscriptionIDLength else { return nil }
-		self.subscriptionID = NOSTR_subscription_ID(RAW_decode: inputPtr, count: subscriptionIDLength)
+		guard let subscriptionID = NOSTR_subscription_ID(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: subscriptionIDLength)) else { return nil }
+		self.subscriptionID = subscriptionID
 		inputPtr = inputPtr.advanced(by: subscriptionIDLength)
 		dataCount -= subscriptionIDLength
 		
@@ -45,11 +49,11 @@ public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, 
 		guard readType.RAW_native() == 0x101 else { return nil }
 		dataCount -= MemoryLayout<NOSTR_message_type>.size
 		guard dataCount >= 0 else { return nil }
-		guard let event = NOSTR_event_signed<UnsignedEvent>(RAW_decode: inputPtr, count: dataCount) else { return nil }
+		guard let event = NOSTR_event_signed<UnsignedEvent>(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: dataCount)) else { return nil }
 		self.event = event
 	}
 	
-	public func RAW_encode(count: inout RAW.size_t) {
+	public func RAW_encode(count: inout Int) {
 		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<Bytes4>.size
 		subscriptionID.RAW_encode(count: &count)
 		event.RAW_encode(count: &count)
@@ -64,5 +68,8 @@ public struct NOSTR_message_EVENT<UnsignedEvent:NOSTR_event_unsigned>:Sendable, 
 		dest = type.RAW_encode(dest: dest)
 		return event.RAW_encode(dest: dest)
 	}
-	
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+	}
 }

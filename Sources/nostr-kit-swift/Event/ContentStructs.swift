@@ -3,6 +3,21 @@ import RAW
 
 extension RAW_byte: NOSTR_tag_value {}
 
+/// The raw UTF-8 string value that backs `Encoded.String`.
+///
+/// This type is declared at file scope (rather than nested inside `Encoded`)
+/// because the `@RAW_convertible_string_type` macro emits its conformance
+/// extension with the bare type name; a file-scope declaration binds that
+/// extension unambiguously. It is an implementation detail — use
+/// `Encoded.String` instead.
+@RAW_convertible_string_type<UTF8>(backing: RAW_byte.self)
+public struct UTF8String: Sendable, Equatable, Hashable, Comparable, ExpressibleByStringLiteral, CustomDebugStringConvertible, NOSTR_tag_value {
+	/// A textual representation of the string.
+	public var debugDescription: String {
+		return String(self)
+	}
+}
+
 /// A namespace grouping the raw, wire-encodable scalar types used as event
 /// content and tag values.
 ///
@@ -110,8 +125,8 @@ public enum Encoded {
 		/// The stored native floating-point value.
 		public func RAW_native() -> Swift.Float {
 			#if DEBUG
-			assert(MemoryLayout<Self>.size == MemoryLayout<RAW_staticbuff_storetype>.size, "static buffer type size mismatch. this is a misuse of the macro")
-			assert(MemoryLayout<Swift.Float>.size == MemoryLayout<RAW_staticbuff_storetype>.size, "static buffer type size mismatch. this is a misuse of the macro")
+			assert(MemoryLayout<Self>.size == MemoryLayout<Self.RAW_fixed_type>.size, "static buffer type size mismatch. this is a misuse of the macro")
+			assert(MemoryLayout<Swift.Float>.size == MemoryLayout<Self.RAW_fixed_type>.size, "static buffer type size mismatch. this is a misuse of the macro")
 			#endif
 			return withUnsafePointer(to: self) { selfPtr in
 				let bitPattern = UnsafeRawPointer(selfPtr).loadUnaligned(as: Swift.UInt32.self)
@@ -122,11 +137,12 @@ public enum Encoded {
 		/// Creates a floating-point value from its native Swift representation.
 		public init(RAW_native native: Swift.Float) {
 			#if DEBUG
-			assert(MemoryLayout<RAW_native_type>.size == MemoryLayout<RAW_staticbuff_storetype>.size, "static buffer type size mismatch. this is a misuse of the macro")
-			assert(MemoryLayout<Swift.Float>.size == MemoryLayout<RAW_staticbuff_storetype>.size, "static buffer type size mismatch. this is a misuse of the macro")
+			assert(MemoryLayout<Self.RAW_fixed_type>.size == MemoryLayout<Self.RAW_fixed_type>.size, "static buffer type size mismatch. this is a misuse of the macro")
+			assert(MemoryLayout<Swift.Float>.size == MemoryLayout<Self.RAW_fixed_type>.size, "static buffer type size mismatch. this is a misuse of the macro")
 			#endif
 			var enc = native.bitPattern
-			self.init(RAW_staticbuff: &enc)
+			let encBytes = withUnsafeBytes(of: &enc) { Array($0) }
+			self.init(RAW_decode: encBytes.withUnsafeBytes { $0 })!
 		}
 
 		/// Compares two raw byte buffers as native floating-point values.
@@ -162,22 +178,15 @@ public enum Encoded {
 	}
 
 	/// A UTF-8 string usable as an event content or tag value.
-	@RAW_convertible_string_type<UTF8>(backing: RAW_byte.self)
-	public struct String: Sendable, Equatable, Hashable, Comparable, ExpressibleByStringLiteral, CustomDebugStringConvertible, NOSTR_tag_value {
-		/// Resolves the macro-generated `init(_: consuming String.UnicodeScalarView)`
-		/// so that `String` means the standard library type (this nested type is
-		/// itself named `String`).
-		public typealias UnicodeScalarView = Swift.String.UnicodeScalarView
-		/// A textual representation of the string.
-		public var debugDescription: Swift.String {
-			return Swift.String(self)
-		}
-	}
+	///
+	/// The backing implementation is the file-scope `UTF8String` type; this
+	/// alias exists so the string value is reachable as a member of `Encoded`.
+	public typealias String = UTF8String
 
 	/// An 8-byte, big-endian Unix timestamp usable as an event content or tag value.
 	@RAW_staticbuff(bytes:8)
 	@RAW_staticbuff_fixedwidthinteger_type<RawUInt64>(bigEndian: true)
-	public struct Date: Sendable, Hashable, Comparable, RAW_convertible, NOSTR_tag_value {
+	public struct Date: Sendable, Hashable, Comparable, NOSTR_tag_value {
 		/// Resolves the macro-generated `RAW_compare` return type to the standard
 		/// library `Int32` (shadowed inside this namespace by `Encoded.Int32`).
 		public typealias Int32 = Swift.Int32
@@ -200,7 +209,7 @@ public enum Encoded {
 	}
 
 	/// An arbitrary-length block of bytes.
-	public struct Data: Sendable, Hashable, Comparable, RAW_convertible {
+	public struct Data: Sendable, Hashable, Comparable, RAW_decodable, RAW_encodable {
 		let data: Foundation.Data
 
 		public static func < (lhs: Self, rhs: Self) -> Swift.Bool {
@@ -212,11 +221,15 @@ public enum Encoded {
 			self.data = data
 		}
 
-		public init?(RAW_decode inputPtr: consuming UnsafeRawPointer, count: RAW.size_t) {
-			self.data = Foundation.Data(bytes: inputPtr, count: count)
+		public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+			if let baseAddress = buffer.baseAddress {
+				self.data = Foundation.Data(bytes: baseAddress, count: buffer.count)
+			} else {
+				self.data = Foundation.Data()
+			}
 		}
 
-		public func RAW_encode(count: inout RAW.size_t) {
+		public func RAW_encode(count: inout Int) {
 			count += self.data.count
 		}
 
@@ -229,5 +242,11 @@ public enum Encoded {
 			}
 			return dest.advanced(by: data.count)
 		}
+		@discardableResult
+		public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+			return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+		}
+
+
 	}
 }

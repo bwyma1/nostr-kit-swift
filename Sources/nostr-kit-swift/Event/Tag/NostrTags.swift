@@ -56,8 +56,8 @@ public struct DTag: Sendable, Hashable, Equatable, NOSTR_tag {
 	/// Creates a d-tag from a raw, access-encodable value.
 	public init?(raw: any RAW_accessible) {
 		var value: Encoded.String?
-		raw.RAW_access { ptr in
-			value = Encoded.String(RAW_accessed: ptr)
+		raw.RAW_access_immutable { ptr in
+			value = Encoded.String(RAW_decode: UnsafeRawBufferPointer(ptr))
 		}
 		guard let value = value else { return nil }
 		self.value = value

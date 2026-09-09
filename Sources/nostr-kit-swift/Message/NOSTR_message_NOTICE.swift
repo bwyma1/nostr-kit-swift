@@ -6,7 +6,7 @@ fileprivate struct NoticeText: NOSTR_event_content, Comparable, ExpressibleByStr
 /// A signal with an attached text sent by the server to the client.
 ///
 /// Can be a warning or other relevant information.
-public struct NOSTR_message_NOTICE:Sendable, RAW_convertible {
+public struct NOSTR_message_NOTICE:Sendable, RAW_decodable, RAW_encodable {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x104)
 	
@@ -20,12 +20,16 @@ public struct NOSTR_message_NOTICE:Sendable, RAW_convertible {
 		self.text = NoticeText(stringLiteral: noticeText)
 	}
 	
-	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+	public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+		guard let baseAddress = buffer.baseAddress else { return nil }
+		var inputPtr = baseAddress
+		let count = buffer.count
 		guard count >= MemoryLayout<Bytes4>.size else { return nil }
 		let textLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 		var dataCount = count - MemoryLayout<Bytes4>.size
 		guard dataCount >= textLength else { return nil }
-		self.text = NoticeText(RAW_decode: inputPtr, count: textLength)
+		guard let text = NoticeText(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: textLength)) else { return nil }
+		self.text = text
 		inputPtr = inputPtr.advanced(by: textLength)
 		dataCount -= textLength
 		
@@ -34,7 +38,7 @@ public struct NOSTR_message_NOTICE:Sendable, RAW_convertible {
 		guard readType.RAW_native() == 0x104 else { return nil }
 	}
 	
-	public func RAW_encode(count: inout RAW.size_t) {
+	public func RAW_encode(count: inout Int) {
 		text.RAW_encode(count: &count)
 		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<Bytes4>.size
 	}
@@ -46,5 +50,9 @@ public struct NOSTR_message_NOTICE:Sendable, RAW_convertible {
 		dest = text.RAW_encode(dest: dest)
 		
 		return type.RAW_encode(dest: dest)
+	}
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
 	}
 }

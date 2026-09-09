@@ -1,11 +1,32 @@
 import RAW
-extension RAW_accessible where Self: RAW_encodable & RAW_decodable {
+
+extension RAW_encodable {
+	/// v22 raw-pointer encode requirement default: funnels to the byte-pointer
+	/// `RAW_encode(dest:)` form that this module's types implement.
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+	}
+}
+
+extension RAW_staticbuff {
+	/// v22's `@RAW_staticbuff` macro no longer generates a per-type
+	/// `RAW_encode(count:)`, so every fixed-width type falls back to rawdog's
+	/// assign-style default (`count = buffer.count`). That clobbers composite
+	/// encoders that accumulate member sizes into an inout counter (the idiom
+	/// used throughout this library and its macros). Add instead.
+	public borrowing func RAW_encode(count: inout Int) {
+		count += MemoryLayout<RAW_fixed_type>.size
+	}
+}
+
+extension RAW_accessible_immutable where Self: RAW_encodable & RAW_decodable {
 	/// Provides read-only access to the value's encoded bytes.
 	///
 	/// Encodes the value into a temporary buffer, runs `body` with a read-only view
 	/// of those bytes, and rethrows any error thrown by `body`.
-	public func RAW_access<R, E>(_ body: (UnsafeBufferPointer<UInt8>) throws(E) -> R) throws(E) -> R where E : Error {
-		var count: RAW.size_t = 0
+	public func RAW_access_immutable<R, E>(_: UnsafeRawBufferPointer.Type, _ body: (UnsafeRawBufferPointer) throws(E) -> R) throws(E) -> R where E: Swift.Error {
+		var count = 0
 		self.RAW_encode(count: &count)
 
 		do {
@@ -13,17 +34,19 @@ extension RAW_accessible where Self: RAW_encodable & RAW_decodable {
 				byteCount: count,
 				alignment: MemoryLayout<UInt8>.alignment
 			) { rawBuffer in
-				let base = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-				_ = self.RAW_encode(dest: base)
+				let base = rawBuffer.baseAddress!
+				_ = self.RAW_encode(UnsafeMutableRawPointer.self, destination: base)
 
-				let buffer = UnsafeBufferPointer(start: base, count: count)
+				let buffer = UnsafeRawBufferPointer(start: base, count: count)
 				return try body(buffer)
 			}
 		} catch {
 			throw error as! E
 		}
 	}
+}
 
+extension RAW_accessible_mutable where Self: RAW_encodable & RAW_decodable {
 	/// Provides read-write access to the value's encoded bytes.
 	///
 	/// Encodes the value into a temporary buffer, runs `body` with a mutable view of
@@ -31,8 +54,8 @@ extension RAW_accessible where Self: RAW_encodable & RAW_decodable {
 	/// value. If the modified bytes no longer decode to a valid value, the mutation
 	/// is rejected with `RAWAccessError.invalidMutatedState`. Rethrows any error
 	/// thrown by `body`.
-	public mutating func RAW_access_mutating<R, E>(_ body: (UnsafeMutableBufferPointer<UInt8>) throws(E) -> R) throws(E) -> R where E : Error {
-		var count: RAW.size_t = 0
+	public mutating func RAW_access_mutable<R, E>(_: UnsafeMutableRawBufferPointer.Type, _ body: (UnsafeMutableRawBufferPointer) throws(E) -> R) throws(E) -> R where E: Swift.Error {
+		var count = 0
 		self.RAW_encode(count: &count)
 
 		do {
@@ -40,17 +63,13 @@ extension RAW_accessible where Self: RAW_encodable & RAW_decodable {
 				byteCount: count,
 				alignment: MemoryLayout<UInt8>.alignment
 			) { rawBuffer in
-				let base = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-				_ = self.RAW_encode(dest: base)
+				let base = rawBuffer.baseAddress!
+				_ = self.RAW_encode(UnsafeMutableRawPointer.self, destination: base)
 
-				let buffer = UnsafeMutableBufferPointer(start: base, count: count)
+				let buffer = UnsafeMutableRawBufferPointer(start: base, count: count)
 				let result = try body(buffer)
 
-				let readPtr = UnsafeRawPointer(base)
-				guard let decoded = Self(
-					RAW_decode: readPtr,
-					count: count
-				) else {
+				guard let decoded = Self(RAW_decode: UnsafeRawBufferPointer(start: base, count: count)) else {
 					throw RAWAccessError.invalidMutatedState
 				}
 

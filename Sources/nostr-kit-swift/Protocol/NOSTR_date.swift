@@ -7,7 +7,7 @@ import Foundation
 /// Unix epoch).
 @RAW_staticbuff(bytes:8)
 @RAW_staticbuff_fixedwidthinteger_type<UInt64>(bigEndian: true)
-public struct NOSTR_date: Sendable, Hashable, Comparable, RAW_convertible, NOSTR_tag_value {
+public struct NOSTR_date: Sendable, Hashable, Comparable, NOSTR_tag_value {
 	/// Creates a date from a `Foundation.Date`.
 	public init(date: Foundation.Date) {
 		self = NOSTR_date(RAW_native: UInt64(date.timeIntervalSince1970))

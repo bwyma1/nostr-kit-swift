@@ -27,8 +27,11 @@ public struct EventTag: Sendable, Hashable, NOSTR_tag {
 	}
 }
 
-extension EventTag: RAW_convertible {
-	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+extension EventTag: RAW_decodable, RAW_encodable {
+	public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+	guard let baseAddress = buffer.baseAddress else { return nil }
+	var inputPtr = baseAddress
+	let count = buffer.count
 		var dataCount = count
 		guard dataCount >= MemoryLayout<NOSTR_tag_name>.size else { return nil }
 		
@@ -40,11 +43,12 @@ extension EventTag: RAW_convertible {
 		let length = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 		guard dataCount >= length else { return nil }
 		dataCount -= length
-		self.value = NOSTR_tag_generic_value(RAW_decode: inputPtr, count: length)
+		guard let value = NOSTR_tag_generic_value(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: length)) else { return nil }
+		self.value = value
 		guard dataCount == 0 else { return nil }
 	}
 	
-	public func RAW_encode(count: inout RAW.size_t) {
+	public func RAW_encode(count: inout Int) {
 		count += MemoryLayout<NOSTR_tag_name>.size + MemoryLayout<Bytes4>.size
 		value.RAW_encode(count: &count)
 	}
@@ -58,5 +62,10 @@ extension EventTag: RAW_convertible {
 		dest = value.RAW_encode(dest: dest)
 		
 		return dest
+	}
+	
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
 	}
 }

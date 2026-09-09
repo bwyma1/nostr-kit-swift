@@ -7,7 +7,7 @@ import RAW
 /// to take on an incoming event.
 @RAW_staticbuff(bytes: 2)
 @RAW_staticbuff_fixedwidthinteger_type<UInt16>(bigEndian: true)
-public struct NOSTR_application: Sendable, Hashable, Comparable, RAW_convertible {
+public struct NOSTR_application: Sendable, Hashable, Comparable {
 	/// Creates an application from a `UInt8`.
 	public init(_ application: UInt8) {
 		self = NOSTR_application(RAW_native: UInt16(application))

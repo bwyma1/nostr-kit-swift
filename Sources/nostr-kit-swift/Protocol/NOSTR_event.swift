@@ -7,14 +7,14 @@ import RAW_ed25519
 /// The content of a `NOSTR_event`.
 ///
 /// Content is any raw, encodable value that carries the event's payload.
-public protocol NOSTR_event_content: Sendable, Hashable, RAW_convertible { }
+public protocol NOSTR_event_content: Sendable, Hashable, RAW_decodable, RAW_encodable { }
 
 /// An event that has not yet been signed.
 ///
 /// An unsigned event computes and stores its `id` (the SHA-256 hash of its
 /// serialized fields) and can be signed with an author's private key to produce a
 /// `NOSTR_event_signed`.
-public protocol NOSTR_event_unsigned: Sendable, Hashable, Identifiable, RAW_convertible {
+public protocol NOSTR_event_unsigned: Sendable, Hashable, Identifiable, RAW_decodable, RAW_encodable {
 	
 	/// The event's unique identifier (SHA-256 of its serialized fields).
 	var id:NOSTR_id { get }
@@ -55,7 +55,7 @@ func computeEventID<Content: NOSTR_event_content>(
 	kind: NOSTR_kind,
 	content: Content
 ) throws -> NOSTR_id {
-	var hasher = RAW_sha256.Hasher<NOSTR_id>()
+	var hasher = RAW_sha256.Hasher()
 	
 	try hasher.update(publicKey)
 	try hasher.update(date)
@@ -75,12 +75,10 @@ func computeEventID<Content: NOSTR_event_content>(
 	content.RAW_encode(dest: buffer.baseAddress!)
 	try hasher.update(buffer)
 	
-	var id = NOSTR_id(RAW_staticbuff: NOSTR_id.RAW_staticbuff_zeroed())
-	try id.RAW_access_staticbuff_mutating({ ptr in
-		try hasher.finish(into: ptr)
-	})
-	
-	return id
+	let hash = try hasher.finish()
+	return hash.RAW_access_immutable(UnsafeRawBufferPointer.self) { raw in
+		NOSTR_id(RAW_staticbuff: raw.load(as: NOSTR_id.RAW_fixed_type.self))
+	}
 }
 
 extension NOSTR_event_unsigned {
@@ -152,17 +150,17 @@ extension NOSTR_event_unsigned {
 		guard isValid() else {
 			throw NOSTR_event_error.eventValidationFailed
 		}
-		var sig = NOSTR_sig(RAW_staticbuff: NOSTR_sig.RAW_staticbuff_zeroed())
-		sig.RAW_access_mutating { sigPtr in
-			id.RAW_access { msgPtr in
-				RAW_ed25519.sign(to: sigPtr.baseAddress!, privateKey: author, message: msgPtr)
+		var sig = [UInt8](repeating: 0, count: 64).withUnsafeBytes { NOSTR_sig(RAW_decode: $0)! }
+		sig.RAW_access_mutable { sigPtr in
+			id.RAW_access_immutable { msgPtr in
+				RAW_ed25519.sign(to: sigPtr, privateKey: author, message: msgPtr)
 			}
 		}
 		return NOSTR_event_signed(unsignedEvent: self, sig: sig)
 	}
 }
 
-public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, Hashable, Identifiable, RAW_convertible, RAW_accessible {
+public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, Hashable, Identifiable, RAW_decodable, RAW_encodable, RAW_accessible {
 	/// The Ed25519 signature over the event's `id`.
 	public let sig:NOSTR_sig
 	// For identifiable protocol
@@ -179,15 +177,18 @@ public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, 
 		self.sig = sig
 	}
 	
-	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+	public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+		guard let baseAddress = buffer.baseAddress else { return nil }
+		var inputPtr = baseAddress
+		let count = buffer.count
 		guard count >= MemoryLayout<NOSTR_sig>.size else { return nil }
 		sig = NOSTR_sig(RAW_staticbuff_seeking: &inputPtr)
 		let unsignedEventCount = count - MemoryLayout<NOSTR_sig>.size
-		guard let unsignedEvent = UnsignedEvent(RAW_decode: inputPtr, count: unsignedEventCount) else { return nil }
+		guard let unsignedEvent = UnsignedEvent(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: unsignedEventCount)) else { return nil }
 		self.unsignedEvent = unsignedEvent
 	}
 	
-	public func RAW_encode(count: inout RAW.size_t) {
+	public func RAW_encode(count: inout Int) {
 		sig.RAW_encode(count: &count)
 		unsignedEvent.RAW_encode(count: &count)
 	}
@@ -196,6 +197,11 @@ public struct NOSTR_event_signed<UnsignedEvent:NOSTR_event_unsigned>: Sendable, 
 		var dest = sig.RAW_encode(dest: dest)
 		dest = unsignedEvent.RAW_encode(dest: dest)
 		return dest
+	}
+
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
 	}
 }
 
@@ -209,9 +215,9 @@ extension NOSTR_event_signed {
 	/// plausibility checks in `NOSTR_event_unsigned.isValid`).
 	public func isValidSignature() -> Bool {
 		guard unsignedEvent.isValid() else { return false }
-		return sig.RAW_access_staticbuff { sigPtr in
-			unsignedEvent.id.RAW_access { msgPtr in
-				RAW_ed25519.verify(signature: sigPtr.assumingMemoryBound(to: UInt8.self), publicKey: unsignedEvent.publicKey, message: msgPtr)
+		return sig.RAW_access_immutable { sigPtr in
+			unsignedEvent.id.RAW_access_immutable { msgPtr in
+				RAW_ed25519.verify(signature: sigPtr, publicKey: unsignedEvent.publicKey, message: msgPtr)
 			}
 		}
 	}

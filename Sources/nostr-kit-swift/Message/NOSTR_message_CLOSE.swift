@@ -4,7 +4,7 @@ import RAW
 ///
 /// The server stops sending events for the given subscription when it receives this
 /// message.
-public struct NOSTR_message_CLOSE:Sendable, RAW_convertible {
+public struct NOSTR_message_CLOSE:Sendable, RAW_decodable, RAW_encodable {
 	
 	let type:NOSTR_message_type = NOSTR_message_type(RAW_native:0x103)
 	
@@ -16,12 +16,16 @@ public struct NOSTR_message_CLOSE:Sendable, RAW_convertible {
 		self.subscriptionID = NOSTR_subscription_ID(stringLiteral: subscriptionID)
 	}
 	
-	public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
+	public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+	guard let baseAddress = buffer.baseAddress else { return nil }
+	var inputPtr = baseAddress
+	let count = buffer.count
 		guard count >= MemoryLayout<Bytes4>.size else { return nil }
 		let subscriptionIDLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 		var dataCount = count - MemoryLayout<Bytes4>.size
 		guard dataCount >= subscriptionIDLength else { return nil }
-		self.subscriptionID = NOSTR_subscription_ID(RAW_decode: inputPtr, count: subscriptionIDLength)
+		guard let subscriptionID = NOSTR_subscription_ID(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: subscriptionIDLength)) else { return nil }
+		self.subscriptionID = subscriptionID
 		inputPtr = inputPtr.advanced(by: subscriptionIDLength)
 		dataCount -= subscriptionIDLength
 		
@@ -30,7 +34,7 @@ public struct NOSTR_message_CLOSE:Sendable, RAW_convertible {
 		guard readType.RAW_native() == 0x103 else { return nil }
 	}
 	
-	public func RAW_encode(count: inout RAW.size_t) {
+	public func RAW_encode(count: inout Int) {
 		subscriptionID.RAW_encode(count: &count)
 		count += MemoryLayout<NOSTR_message_type>.size + MemoryLayout<Bytes4>.size
 	}
@@ -43,4 +47,10 @@ public struct NOSTR_message_CLOSE:Sendable, RAW_convertible {
 		
 		return type.RAW_encode(dest: dest)
 	}
+	@discardableResult
+	public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+		return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+	}
+
+
 }

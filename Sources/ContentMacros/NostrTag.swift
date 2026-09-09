@@ -32,7 +32,7 @@ enum NostrTagError: CustomStringConvertible, Error {
 }
 
 /// The macro adds the conformance and conformance functions
-/// for `RAW_convertible` as an extension of the tag struct.
+/// for `RAW_decodable` and `RAW_encodable` as an extension of the tag struct.
 ///
 /// Parameters:
 /// - `name`: The tag's index field. When provided, the raw decode initializer
@@ -192,9 +192,9 @@ public struct NostrTag: MemberMacro, ExtensionMacro {
 		guard Self.isValidName(nameValue) else { return [] }
 		
 		guard declaration.inheritanceClause?.inheritedTypes.contains(where: {
-			$0.type.trimmedDescription == "RAW_convertible"
+			$0.type.trimmedDescription == "RAW_decodable"
 		}) == false else  {
-			throw NostrTagError.doubleConformace("RAW_convertible")
+			throw NostrTagError.doubleConformace("RAW_decodable")
 		}
 		
 		guard let structDecl = declaration.as(StructDeclSyntax.self) else {
@@ -210,7 +210,7 @@ public struct NostrTag: MemberMacro, ExtensionMacro {
 		var rawDecodeInit = ""
 		let rawEncodeCount =
 			"""
-			public func RAW_encode(count: inout RAW.size_t) {
+			public func RAW_encode(count: inout Int) {
 				count += MemoryLayout<NOSTR_tag_name>.size + MemoryLayout<Bytes4>.size
 				value.RAW_encode(count: &count)
 			}
@@ -228,6 +228,13 @@ public struct NostrTag: MemberMacro, ExtensionMacro {
 				return dest
 			}
 			"""
+		let rawEncodeRawPtr =
+			"""
+			@discardableResult
+			public func RAW_encode(_: UnsafeMutableRawPointer.Type, destination: UnsafeMutableRawPointer) -> UnsafeMutableRawPointer {
+				return UnsafeMutableRawPointer(RAW_encode(dest: destination.assumingMemoryBound(to: UInt8.self)))
+			}
+			"""
 
 		if let valueType = valueType {
 			var nameCheckString: String {
@@ -241,8 +248,10 @@ public struct NostrTag: MemberMacro, ExtensionMacro {
 
 			rawDecodeInit =
 				"""
-				public init?(RAW_decode inputPtr:consuming UnsafeRawPointer, count: RAW.size_t) {
-					var dataCount = count
+				public init?(RAW_decode buffer: UnsafeRawBufferPointer) {
+					guard let baseAddress = buffer.baseAddress else { return nil }
+					var inputPtr = baseAddress
+					var dataCount = buffer.count
 					guard dataCount >= MemoryLayout<NOSTR_tag_name>.size else { return nil }
 
 					self.indexField = NOSTR_tag_name(RAW_staticbuff_seeking: &inputPtr)
@@ -264,13 +273,14 @@ public struct NostrTag: MemberMacro, ExtensionMacro {
 		return [
 			try ExtensionDeclSyntax(
 				"""
-				extension \(raw: structDecl.name.text): RAW_convertible {
+				extension \(raw: structDecl.name.text): RAW_decodable, RAW_encodable {
 					\(raw: rawDecodeInit)
 					\(raw: rawEncodeCount)
 					\(raw: rawEncode)
+					\(raw: rawEncodeRawPtr)
 
-					private static func _decodeTagValue<T: RAW_convertible>(_ type: T.Type, _ ptr: UnsafeRawPointer, _ len: RAW.size_t) -> T? {
-						return T(RAW_decode: ptr, count: len)
+					private static func _decodeTagValue<T: RAW_decodable & RAW_encodable>(_ type: T.Type, _ ptr: UnsafeRawPointer, _ len: Int) -> T? {
+						return T(RAW_decode: UnsafeRawBufferPointer(start: ptr, count: len))
 					}
 				}
 				""")
