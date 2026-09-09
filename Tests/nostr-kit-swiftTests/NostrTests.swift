@@ -14,7 +14,10 @@ extension NostrTests {
 		.serialized
 	)
 	struct NostrEventTests {
-		static let staticPrivateKey = MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode: try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI=").withUnsafeBytes { UnsafeRawBufferPointer($0) })!
+		static let staticPrivateKey = {
+			let keyBytes = try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI=")
+			return keyBytes.withUnsafeBytes { MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode: UnsafeRawBufferPointer($0))! }
+		}()
 		let tags: [any NOSTR_tag]
 		let date:NOSTR_date
 		let application:NOSTR_application
@@ -76,6 +79,40 @@ extension NostrTests {
 			for cut in 0..<eventLen {
 				_ = UnsignedEvent<StringContent>(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: cut))
 			}
+		}
+
+		@Test func unsignedEventInflatedTagLengthIsRejected() throws {
+			// H1: the tag-length prefix is wire-controlled. Inflating it so that the
+			// claimed length exceeds the remaining bytes must be rejected BEFORE the
+			// sub-decode runs (the decoder previously trusted the claim and read into
+			// the following fields / past the end of truncated input).
+			var eventLen = 0; event.RAW_encode(count: &eventLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: eventLen)
+			defer { buffer.deallocate() }
+			_ = event.RAW_encode(dest: buffer.baseAddress!)
+			let wire = Array(UnsafeBufferPointer(start: buffer.baseAddress!, count: eventLen))
+
+			// Layout: id(32) + pk(32) + date(8) + Bytes2 tagCount(2) = 74, then per tag Bytes4 len + bytes.
+			let tagLenPrefixOffset = 32 + 32 + 8 + 2
+			let bytesAfterPrefix = wire.count - tagLenPrefixOffset - 4
+			let claimed = bytesAfterPrefix + 5
+
+			var inflated = wire
+			inflated[tagLenPrefixOffset + 0] = UInt8((claimed >> 24) & 0xFF)
+			inflated[tagLenPrefixOffset + 1] = UInt8((claimed >> 16) & 0xFF)
+			inflated[tagLenPrefixOffset + 2] = UInt8((claimed >> 8) & 0xFF)
+			inflated[tagLenPrefixOffset + 3] = UInt8(claimed & 0xFF)
+			let inflatedBuf = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: inflated.count)
+			defer { inflatedBuf.deallocate() }
+			_ = inflatedBuf.initialize(from: inflated)
+			#expect(UnsignedEvent<StringContent>(RAW_decode: UnsafeRawBufferPointer(start: inflatedBuf.baseAddress!, count: inflated.count)) == nil)
+
+			// Truncated inside the tag with an inflated claim must also fail (exact-size input).
+			let truncated = Array(inflated[0 ..< (tagLenPrefixOffset + 4 + 3)])
+			let truncatedBuf = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: truncated.count)
+			defer { truncatedBuf.deallocate() }
+			_ = truncatedBuf.initialize(from: truncated)
+			#expect(UnsignedEvent<StringContent>(RAW_decode: UnsafeRawBufferPointer(start: truncatedBuf.baseAddress!, count: truncated.count)) == nil)
 		}
 
 		@Test func truncatedSignedEventDecodeRejectsOutOfBounds() throws {
@@ -144,6 +181,20 @@ extension NostrTests {
 			#expect(nilFilter.until == decodedNilFilter.until)
 		}
 
+		@Test func filterMaxIdsRoundTrip() throws {
+			// M2: the Filter wire count field is 1 byte, so exactly 255 ids must encode
+			// and round-trip; 256+ is rejected by a precondition at encode time.
+			let ids = (0..<255).map { _ in event.id }
+			let filter = Filter(ids: ids)
+			var filterLen = 0; filter.RAW_encode(count: &filterLen)
+			let buffer = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: filterLen)
+			defer { buffer.deallocate() }
+			_ = filter.RAW_encode(dest: buffer.baseAddress!)
+			let decoded = Filter(RAW_decode: UnsafeRawBufferPointer(start: buffer.baseAddress!, count: filterLen))!
+			#expect(decoded.ids.count == 255)
+			#expect(decoded.ids.allSatisfy { $0 == event.id })
+		}
+
 		@Test func truncatedFilterDecodeRejectsOutOfBounds() throws {
 			// Regression test for H1: the filter decoder must not read past the buffer.
 			// A valid filter is encoded, then truncated at every byte boundary. The decoder
@@ -209,7 +260,10 @@ extension NostrTests {
 		   .serialized
 	)
 	struct NostrEventValidationTests {
-		static let staticPrivateKey = MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode: try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI=").withUnsafeBytes { UnsafeRawBufferPointer($0) })!
+		static let staticPrivateKey = {
+			let keyBytes = try! RAW_base64.decode("8DFnI7tPWLl4WmuEp4T5KVuKMW6iyjRdTb3IVaDe+kI=")
+			return keyBytes.withUnsafeBytes { MemoryGuarded<RAW_dh25519.PrivateKey>(RAW_decode: UnsafeRawBufferPointer($0))! }
+		}()
 		let tags: [any NOSTR_tag]
 		let date: NOSTR_date
 		let application: NOSTR_application

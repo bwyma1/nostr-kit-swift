@@ -142,7 +142,9 @@ public enum Encoded {
 			#endif
 			var enc = native.bitPattern
 			let encBytes = withUnsafeBytes(of: &enc) { Array($0) }
-			self.init(RAW_decode: encBytes.withUnsafeBytes { $0 })!
+			self = encBytes.withUnsafeBytes { (buf: UnsafeRawBufferPointer) in
+				Encoded.Float(RAW_decode: buf)!
+			}
 		}
 
 		/// Compares two raw byte buffers as native floating-point values.
@@ -192,6 +194,7 @@ public enum Encoded {
 		public typealias Int32 = Swift.Int32
 		/// Creates a date value from a `Foundation.Date`.
 		public init(date: Foundation.Date) {
+			precondition(date.timeIntervalSince1970 >= 0, "Encoded.Date cannot represent dates before the Unix epoch (1970-01-01): \(date).")
 			self = Date(RAW_native: Swift.UInt64(date.timeIntervalSince1970))
 		}
 		/// Creates a date value from a Unix timestamp in seconds.

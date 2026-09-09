@@ -10,6 +10,7 @@ import Foundation
 public struct NOSTR_date: Sendable, Hashable, Comparable, NOSTR_tag_value {
 	/// Creates a date from a `Foundation.Date`.
 	public init(date: Foundation.Date) {
+		precondition(date.timeIntervalSince1970 >= 0, "NOSTR_date cannot represent dates before the Unix epoch (1970-01-01): \(date).")
 		self = NOSTR_date(RAW_native: UInt64(date.timeIntervalSince1970))
 	}
 	/// Creates a date from a Unix timestamp in seconds.

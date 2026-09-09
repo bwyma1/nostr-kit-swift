@@ -202,6 +202,7 @@ public struct Filter:Sendable, RAW_decodable, RAW_encodable {
 	
 	public func RAW_encode(dest: UnsafeMutablePointer<UInt8>) -> UnsafeMutablePointer<UInt8> {
 		// ids
+		precondition(ids.count <= Int(UInt8.max), "Filter cannot encode \(ids.count) ids: the wire count field is 1 byte (max \(Int(UInt8.max))). Split the filter instead.")
 		let idCount = Bytes1(RAW_native: UInt8(ids.count))
 		var dest = idCount.RAW_encode(dest: dest)
 		for id in ids {
@@ -209,6 +210,7 @@ public struct Filter:Sendable, RAW_decodable, RAW_encodable {
 		}
 		
 		// authors
+		precondition(authors.count <= Int(UInt8.max), "Filter cannot encode \(authors.count) authors: the wire count field is 1 byte (max \(Int(UInt8.max))). Split the filter instead.")
 		let authorCount = Bytes1(RAW_native: UInt8(authors.count))
 		dest = authorCount.RAW_encode(dest: dest)
 		for author in authors {
@@ -216,6 +218,7 @@ public struct Filter:Sendable, RAW_decodable, RAW_encodable {
 		}
 		
 		// applications
+		precondition(applications.count <= Int(UInt8.max), "Filter cannot encode \(applications.count) applications: the wire count field is 1 byte (max \(Int(UInt8.max))). Split the filter instead.")
 		let applicationCount = Bytes1(RAW_native: UInt8(applications.count))
 		dest = applicationCount.RAW_encode(dest: dest)
 		for application in applications {
@@ -223,6 +226,7 @@ public struct Filter:Sendable, RAW_decodable, RAW_encodable {
 		}
 		
 		// kinds
+		precondition(kinds.count <= Int(UInt8.max), "Filter cannot encode \(kinds.count) kinds: the wire count field is 1 byte (max \(Int(UInt8.max))). Split the filter instead.")
 		let kindCount = Bytes1(RAW_native: UInt8(kinds.count))
 		dest = kindCount.RAW_encode(dest: dest)
 		for kind in kinds {
@@ -230,6 +234,7 @@ public struct Filter:Sendable, RAW_decodable, RAW_encodable {
 		}
 		
 		// tags
+		precondition(tags.count <= Int(UInt8.max), "Filter cannot encode \(tags.count) tags: the wire count field is 1 byte (max \(Int(UInt8.max))). Split the filter instead.")
 		let tagCount = Bytes1(RAW_native: UInt8(tags.count))
 		dest = tagCount.RAW_encode(dest: dest)
 		for tag in tags {

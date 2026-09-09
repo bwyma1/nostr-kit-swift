@@ -88,6 +88,7 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 			guard dataCount >= MemoryLayout<Bytes4>.size else { return nil }
 			let tagLength = Int(Bytes4(RAW_staticbuff_seeking: &inputPtr).RAW_native())
 			dataCount -= MemoryLayout<Bytes4>.size
+			guard dataCount >= tagLength else { return nil }
 			guard let tag = EventTag(RAW_decode: UnsafeRawBufferPointer(start: inputPtr, count: tagLength)) else { return nil }
 			inputPtr = inputPtr.advanced(by: tagLength)
 			dataCount -= tagLength
@@ -121,6 +122,7 @@ public struct UnsignedEvent<Content: NOSTR_event_content>:NOSTR_event_unsigned {
 		var dest = id.RAW_encode(dest: dest)
 		dest = publicKey.RAW_encode(dest: dest)
 		dest = date.RAW_encode(dest: dest)
+		precondition(tags.array.count <= Int(UInt16.max), "UnsignedEvent cannot encode \(tags.array.count) tags: the wire count field is 2 bytes (max \(Int(UInt16.max))).")
 		let tagCount = Bytes2(RAW_native: UInt16(tags.array.count))
 		dest = tagCount.RAW_encode(dest: dest)
 		for tag in tags.array {

@@ -163,8 +163,9 @@ extension NostrTests {
 		}
 		
 		@Test func encodeDecodeTag() throws {
-			let nostrId = try generateSecureRandomBytes(count: 32).withUnsafeBytes { NOSTR_id(RAW_decode: UnsafeRawBufferPointer($0))! }
-			let content = try DTag(value: nostrId)
+			let idBytes = try generateSecureRandomBytes(count: 32)
+			let nostrId = idBytes.withUnsafeBytes { NOSTR_id(RAW_decode: UnsafeRawBufferPointer($0))! }
+			let content = DTag(value: nostrId)
 			var contentLen: Int = 0; content.RAW_encode(count: &contentLen)
 			let bufferA = UnsafeMutableBufferPointer<UInt8>.allocate(capacity: contentLen)
 			defer { bufferA.deallocate() }
