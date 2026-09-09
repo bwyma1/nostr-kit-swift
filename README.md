@@ -27,7 +27,7 @@ conformances.
 Add the package to a Swift package manifest:
 
 ```swift
-.package(url: "https://github.com/tannerdsilva/nostr-kit-swift.git", from: "0.1.0")
+.package(url: "https://github.com/bwyma1/nostr-kit-swift", "0.0.0"..<"1.0.0")
 ```
 
 ## Usage
